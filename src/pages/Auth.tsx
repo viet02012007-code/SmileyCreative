@@ -1,28 +1,43 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff, ArrowRight, ShieldCheck, UserPlus } from 'lucide-react';
 
-export default function Login() {
+export default function Auth() {
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Tự động chuyển mode dựa trên đường dẫn hiện tại (/login hay /register)
+    const [isLoginMode, setIsLoginMode] = useState(location.pathname !== '/register');
     const [showPassword, setShowPassword] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
+
+    // Bắt sự kiện thay đổi đường dẫn (ví dụ: người dùng bấm nút back trên trình duyệt)
+    useEffect(() => {
+        setIsLoginMode(location.pathname !== '/register');
+    }, [location.pathname]);
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
+    const toggleMode = (e: React.MouseEvent) => {
+        e.preventDefault();
+        // Chuyển đường link ảo nhưng không tải lại trang
+        navigate(isLoginMode ? '/register' : '/login');
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Cấp quyền và lưu cờ đã đăng nhập
+        // Cấp quyền và lưu cờ đã đăng nhập (mô phỏng login/register thành công)
         localStorage.setItem('isAuthenticated', 'true');
         navigate('/timekeeping');
     };
 
     return (
-        <div className="login-container">
+        <div className="auth-container">
             {/* Left Panel: Branding & Dynamic Gradient */}
-            <div className="login-brand-panel">
+            <div className="auth-brand-panel">
                 <div className="glass-blob blob-1"></div>
                 <div className="glass-blob blob-2"></div>
                 
@@ -48,16 +63,46 @@ export default function Login() {
                 </div>
             </div>
 
-            {/* Right Panel: Login Form */}
-            <div className="login-form-panel">
+            {/* Right Panel: Auth Form */}
+            <div className="auth-form-panel">
                 <div className="form-wrapper" style={{ opacity: isMounted ? 1 : 0, transform: isMounted ? 'translateY(0)' : 'translateY(20px)', transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s' }}>
                     <div className="form-header">
-                        <h2>Chào mừng trở lại! 👋</h2>
-                        <p>Đăng nhập để vào không gian làm việc của Smiley.</p>
+                        <h2>
+                            {isLoginMode ? 'Chào mừng trở lại! 👋' : 'Gia nhập đội ngũ! 🚀'}
+                        </h2>
+                        <p>
+                            {isLoginMode ? 'Đăng nhập để vào không gian làm việc của Smiley.' : 'Tạo tài khoản mới cực nhanh chỉ với vài cú nhấp chuột.'}
+                        </p>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="auth-form">
-                        <div className="input-group">
+                    <form onSubmit={handleSubmit} className={`auth-form ${!isLoginMode ? 'register-mode' : 'login-mode'}`}>
+                        {/* Dynamic fields for Register mode */}
+                        {!isLoginMode && (
+                            <div className="input-row animate-fade-in-up">
+                                <div className="input-group" style={{ flex: 1 }}>
+                                    <label>Họ và tên</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Tên của bạn..."
+                                        required={!isLoginMode}
+                                        className="styled-input"
+                                    />
+                                </div>
+                                <div className="input-group" style={{ flex: 1.2 }}>
+                                    <label>Phòng ban</label>
+                                    <select required={!isLoginMode} className="styled-input custom-select">
+                                        <option value="" disabled selected hidden>Lựa chọn...</option>
+                                        <option value="sangtao">Khối Sáng tạo</option>
+                                        <option value="chienluoc">Khối Chiến lược</option>
+                                        <option value="kythuat">Khối Kỹ thuật & Công nghệ</option>
+                                        <option value="khachhang">Khối Quản lý Khách hàng</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Shared fields: Email and Password */}
+                        <div className="input-group animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                             <label>Hộp thư / Tên đăng nhập</label>
                             <input
                                 type="text"
@@ -67,15 +112,15 @@ export default function Login() {
                             />
                         </div>
 
-                        <div className="input-group">
+                        <div className="input-group animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                             <div className="password-header">
                                 <label>Mật khẩu an toàn</label>
-                                <a href="#" className="forgot-link">Quên mật khẩu?</a>
+                                {isLoginMode && <a href="#" className="forgot-link">Quên mật khẩu?</a>}
                             </div>
                             <div className="password-wrapper">
                                 <input
                                     type={showPassword ? "text" : "password"}
-                                    placeholder="••••••••••••"
+                                    placeholder={isLoginMode ? "••••••••••••" : "Tạo mật khẩu mạnh..."}
                                     required
                                     className="styled-input"
                                 />
@@ -89,31 +134,44 @@ export default function Login() {
                             </div>
                         </div>
 
-                        <button type="submit" className="submit-btn group">
-                            Đăng nhập hệ thống
-                            <ArrowRight size={18} className="btn-icon" />
+                        {/* Confirm Password for Register */}
+                        {!isLoginMode && (
+                            <div className="input-group animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+                                <label>Xác nhận lại mật khẩu</label>
+                                <input
+                                    type="password"
+                                    placeholder="Gõ lại mật khẩu phía trên..."
+                                    required={!isLoginMode}
+                                    className="styled-input"
+                                />
+                            </div>
+                        )}
+
+                        <button type="submit" className="submit-btn group animate-fade-in-up" style={{ animationDelay: isLoginMode ? '0.3s' : '0.4s' }}>
+                            {isLoginMode ? 'Đăng nhập hệ thống' : 'Tạo tài khoản'}
+                            {isLoginMode ? <ArrowRight size={18} className="btn-icon" /> : <UserPlus size={18} className="btn-icon-bounce" />}
                         </button>
                     </form>
 
-                    <div className="form-footer">
-                        Chưa có tài khoản nội bộ?{' '}
-                        <a href="/register" onClick={(e) => { e.preventDefault(); navigate('/register'); }}>
-                            Đăng ký ngay
+                    <div className="form-footer animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+                        {isLoginMode ? 'Chưa có tài khoản nội bộ? ' : 'Đã là đồng đội của chúng tôi? '}
+                        <a href="#" onClick={toggleMode} className="toggle-mode-link">
+                            {isLoginMode ? 'Đăng ký ngay' : 'Đăng nhập vào hệ thống'}
                         </a>
                     </div>
                 </div>
             </div>
 
-            {/* Scoped Styles for Login Page */}
+            {/* Scoped Styles */}
             <style>{`
-                .login-container {
+                .auth-container {
                     display: flex;
                     min-height: 100vh;
                     font-family: 'Inter', sans-serif;
                     background-color: #ffffff;
                 }
 
-                .login-brand-panel {
+                .auth-brand-panel {
                     flex: 1;
                     display: flex;
                     flex-direction: column;
@@ -125,12 +183,11 @@ export default function Login() {
                 }
 
                 @media (max-width: 900px) {
-                    .login-brand-panel {
-                        display: none; /* Hide on smaller screens */
+                    .auth-brand-panel {
+                        display: none;
                     }
                 }
 
-                /* Aesthetic Blobs */
                 .glass-blob {
                     position: absolute;
                     border-radius: 50%;
@@ -199,18 +256,19 @@ export default function Login() {
                     backdrop-filter: blur(10px);
                 }
 
-                .login-form-panel {
+                .auth-form-panel {
                     flex: 1;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     padding: 2rem;
                     background-color: #ffffff;
+                    transition: padding 0.3s;
                 }
 
                 .form-wrapper {
                     width: 100%;
-                    max-width: 420px;
+                    max-width: 440px;
                 }
 
                 .form-header {
@@ -234,6 +292,17 @@ export default function Login() {
                     display: flex;
                     flex-direction: column;
                     gap: 1.5rem;
+                }
+
+                .input-row {
+                    display: flex;
+                    gap: 1rem;
+                }
+                
+                @media (max-width: 480px) {
+                    .input-row {
+                        flex-direction: column;
+                    }
                 }
 
                 .input-group label {
@@ -271,6 +340,7 @@ export default function Login() {
                     font-size: 0.95rem;
                     outline: none;
                     font-family: inherit;
+                    color: #333;
                     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
                     box-shadow: 0 2px 4px rgba(0,0,0,0.01) inset;
                 }
@@ -279,6 +349,15 @@ export default function Login() {
                     border-color: #ff7d0d;
                     background-color: #ffffff;
                     box-shadow: 0 0 0 4px rgba(255, 125, 13, 0.1);
+                }
+
+                .custom-select {
+                    appearance: none;
+                    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+                    background-repeat: no-repeat;
+                    background-position: right 1rem center;
+                    background-size: 1.3em;
+                    cursor: pointer;
                 }
 
                 .password-wrapper {
@@ -334,12 +413,16 @@ export default function Login() {
                     transform: translateY(0);
                 }
 
-                .btn-icon {
+                .btn-icon, .btn-icon-bounce {
                     transition: transform 0.3s ease;
                 }
 
                 .submit-btn:hover .btn-icon {
                     transform: translateX(4px);
+                }
+                
+                .submit-btn:hover .btn-icon-bounce {
+                    transform: scale(1.15) rotate(-5deg);
                 }
 
                 .form-footer {
@@ -349,15 +432,26 @@ export default function Login() {
                     color: #666;
                 }
 
-                .form-footer a {
+                .toggle-mode-link {
                     color: #1a1a1a;
                     font-weight: 700;
                     text-decoration: none;
                     transition: color 0.2s;
                 }
 
-                .form-footer a:hover {
+                .toggle-mode-link:hover {
                     color: #ff7d0d;
+                }
+
+                /* Keyframe utility */
+                @keyframes fadeInUp {
+                    from { opacity: 0; transform: translateY(15px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                
+                .animate-fade-in-up {
+                    animation: fadeInUp 0.4s ease-out forwards;
+                    opacity: 0;
                 }
             `}</style>
         </div>

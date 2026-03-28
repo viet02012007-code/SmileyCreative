@@ -9,14 +9,14 @@ import KnowledgeBase from './pages/KnowledgeBase';
 import Chat from './pages/Chat';
 import AIAssistant from './pages/AIAssistant';
 import Settings from './pages/Settings';
-import Register from './pages/Register';
-import Login from './pages/Login';
+import Auth from './pages/Auth';
 
 function App() {
   return (
     <Routes>
-      <Route path="/register" element={<Register />} />
-      <Route path="/login" element={<Login />} />
+      {/* Dynamic unified auth page handling both routes mapping cleanly */}
+      <Route path="/register" element={<Auth />} />
+      <Route path="/login" element={<Auth />} />
       
       {/* Route bảo vệ yêu cầu đăng nhập */}
       <Route element={<ProtectedRoute />}>
