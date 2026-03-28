@@ -321,25 +321,6 @@ export default function Timekeeping() {
                                 <AlertCircle size={16} style={{ marginTop: '0.1rem', flexShrink: 0 }} />
                                 <span>{locError}</span>
                             </div>
-                            <button 
-                                onClick={() => { setLocError(''); performCheckIn(); }}
-                                style={{
-                                    alignSelf: 'flex-start',
-                                    padding: '0.5rem 1rem',
-                                    backgroundColor: '#b91c1c',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '0.5rem',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    transition: 'opacity 0.2s'
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
-                                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-                            >
-                                Bỏ qua định vị & Vào ca ngay (Tính năng Kiểm thử)
-                            </button>
                         </div>
                     )}
                 </div>
