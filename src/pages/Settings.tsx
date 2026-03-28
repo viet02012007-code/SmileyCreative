@@ -3,6 +3,7 @@ import { User, Bell, Settings as SettingsIcon } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { db } from '../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('profile');
@@ -55,7 +56,7 @@ export default function Settings() {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             if (file.size > 5 * 1024 * 1024) {
-                alert('File quá lớn. Vui lòng chọn file dưới 5MB.');
+                toast.error('File quá lớn. Vui lòng chọn file dưới 5MB.');
                 return;
             }
             const reader = new FileReader();
@@ -79,13 +80,13 @@ export default function Settings() {
         if (currentUser?.id) {
             try {
                 await updateDoc(doc(db, 'users', currentUser.id), updatedUser);
-                alert('Đã đồng bộ thay đổi hồ sơ thành công lên đám mây Smiley!');
+                toast.success('Đã đồng bộ thay đổi hồ sơ thành công lên đám mây Smiley!');
             } catch (error) {
                 console.error('Lỗi khi cập nhật hồ sơ Firestore:', error);
-                alert('Không thể kết nối máy chủ để lưu thay đổi. Vui lòng thử lại sau.');
+                toast.error('Không thể kết nối máy chủ để lưu thay đổi. Vui lòng thử lại sau.');
             }
         } else {
-            alert('Lỗi: Hồ sơ này chưa được đồng bộ từ Cloud (Thiếu ID).');
+            toast.error('Lỗi: Hồ sơ này chưa được đồng bộ từ Cloud (Thiếu ID).');
         }
     };
 
@@ -341,7 +342,7 @@ export default function Settings() {
                                         className="btn btn-primary" 
                                         onClick={() => {
                                             setSystemConfig(systemFormData);
-                                            alert('Đã lưu cấu hình hệ thống (Bán kính & Tọa độ)!');
+                                            toast.success('Đã lưu cấu hình hệ thống (Bán kính & Tọa độ)!');
                                         }}
                                         style={{ padding: '0.75rem 2rem', borderRadius: '2rem', fontWeight: 600, backgroundColor: '#ff7d0d', color: 'white', border: 'none', cursor: 'pointer' }}
                                     >

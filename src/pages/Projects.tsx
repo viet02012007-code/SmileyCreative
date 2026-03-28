@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Search, Bell, Plus, Filter, MoreVertical, LayoutGrid, List, CheckSquare, Calendar, Folder, X, Edit, Trash2 } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import toast from 'react-hot-toast';
 
 const INITIAL_TASKS: any[] = [];
 
@@ -133,7 +134,10 @@ export default function Projects() {
     };
 
     const handleSaveTask = () => {
-        if (!formData.title) return alert('Vui lòng nhập tên công việc!');
+        if (!formData.title) {
+            toast.error('Vui lòng nhập tên công việc!');
+            return;
+        }
         
         let typeColor = '#4F46E5';
         if (formData.type === 'MEDIA') typeColor = '#8B5CF6';

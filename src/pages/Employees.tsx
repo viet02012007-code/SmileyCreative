@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, Filter, Plus, MoreHorizontal, Mail, Phone, Briefcase, MapPin, X, Trash2 } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import toast from 'react-hot-toast';
 
 const MOCK_DATA = [
     { id: 'NV001', name: 'Alex Rivera', role: 'Giám đốc Sáng tạo', department: 'SÁNG TẠO', location: 'HÀ NỘI', email: 'arivera@smiley.com', phone: '0901234567', status: 'Active', avatar: 'https://i.pravatar.cc/150?img=11', statusColor: '#10b981' },
@@ -311,7 +312,10 @@ export default function Employees() {
                                     <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
                                         <button className="btn btn-primary" style={{ flex: 1, border: '2px solid #000', boxShadow: '0 2px 0 #000' }} onClick={() => {
                                             if (isAdding) {
-                                                if (!newUser.name || !newUser.id) return alert('Vui lòng nhập tên và mã NV');
+                                                if (!newUser.name || !newUser.id) {
+                                                    toast.error('Vui lòng nhập tên và mã NV');
+                                                    return;
+                                                }
                                                 setEmployees([newUser as typeof MOCK_DATA[0], ...employees]);
                                                 setIsAdding(false);
                                             } else if (editedUser) {

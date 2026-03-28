@@ -10,10 +10,12 @@ import Chat from './pages/Chat';
 import AIAssistant from './pages/AIAssistant';
 import Settings from './pages/Settings';
 import Auth from './pages/Auth';
+import { Toaster } from 'react-hot-toast';
 
 function App() {
   return (
-    <Routes>
+    <>
+      <Routes>
       {/* Dynamic unified auth page handling both routes mapping cleanly */}
       <Route path="/register" element={<Auth />} />
       <Route path="/login" element={<Auth />} />
@@ -32,7 +34,40 @@ function App() {
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>
-    </Routes>
+      </Routes>
+      
+      <Toaster 
+        position="top-center"
+        toastOptions={{
+          style: {
+            background: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.5)',
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+            color: '#1F2937',
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 500,
+            padding: '16px 24px',
+            borderRadius: '16px',
+            maxWidth: '500px',
+            fontSize: '0.95rem'
+          },
+          success: {
+            iconTheme: {
+              primary: '#10B981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
+    </>
   );
 }
 

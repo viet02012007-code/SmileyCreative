@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Music, X, Minimize2, Maximize2, Play } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function YouTubePlayer() {
     const [isOpen, setIsOpen] = useState(false);
@@ -42,7 +43,7 @@ export default function YouTubePlayer() {
             setVideoUrl(''); // clear input after playing
             fetchVideoTitle(finalId);
         } else {
-            alert('Vui lòng nhập link hoặc ID YouTube hợp lệ!');
+            toast.error('Vui lòng nhập link hoặc ID YouTube hợp lệ!');
         }
     };
 

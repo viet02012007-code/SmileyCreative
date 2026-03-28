@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, Plus, Filter, Phone, Mail, MapPin, ExternalLink, Star, User, MoreHorizontal, X, Edit, Trash2 } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import toast from 'react-hot-toast';
 
 const INITIAL_CLIENTS = [
     { id: 1, name: 'Công ty Cổ phần Công nghệ ABC', contact: 'Nguyễn Văn Tiến', role: 'Giám đốc IT', email: 'tien.nv@abc.tech', phone: '0987654321', address: 'Quận 1, TP.HCM', status: 'Khách hàng VIP', bg: 'var(--color-primary)' },
@@ -22,7 +23,10 @@ export default function CRM() {
     });
 
     const handleSave = () => {
-        if (!formData.name || !formData.contact) return alert("Vui lòng nhập tên công ty và người liên hệ");
+        if (!formData.name || !formData.contact) {
+            toast.error("Vui lòng nhập tên công ty và người liên hệ");
+            return;
+        }
         
         if (editingClient) {
             setClients(clients.map((c: any) => c.id === editingClient.id ? { ...editingClient, ...formData } : c));
