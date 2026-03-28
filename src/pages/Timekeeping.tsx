@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { LogIn, LogOut, Download, Clock, Calendar, ChevronDown, Monitor, Search, AlertCircle } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { db } from '../config/firebase';
+import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 
 export default function Timekeeping() {
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -8,12 +11,39 @@ export default function Timekeeping() {
     const [checkInTime, setCheckInTime] = useState<Date | null>(null);
     const [elapsedTime, setElapsedTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
-    const [logs, setLogs] = useLocalStorage<any[]>('smiley_timekeeping_logs', [
-        { dateStr: '20 Th10, 2023', dayStr: 'Thứ Sáu', in: '09:02 AM', out: '06:15 PM', total: '8g 45ph', type: 'Từ xa', tColor: '#4f46e5', bg: '#4f46e515' },
-        { dateStr: '19 Th10, 2023', dayStr: 'Thứ Năm', in: '08:55 AM', out: '05:30 PM', total: '8g 35ph', type: 'Văn phòng', tColor: '#f59e0b', bg: '#f59e0b15' },
-        { dateStr: '18 Th10, 2023', dayStr: 'Thứ Tư', in: '09:10 AM', out: '07:05 PM', total: '9g 55ph', type: 'Văn phòng', tColor: '#f59e0b', bg: '#f59e0b15' },
-        { dateStr: '17 Th10, 2023', dayStr: 'Thứ Ba', in: '08:30 AM', out: '05:00 PM', total: '8g 30ph', type: 'Tại khách hàng', tColor: '#8b5cf6', bg: '#8b5cf615' },
-    ]);
+    const [logs, setLogs] = useState<any[]>([]);
+    const [isLoadingLogs, setIsLoadingLogs] = useState(true);
+    const currentUserStr = localStorage.getItem('currentUser');
+    const currentUser = currentUserStr ? JSON.parse(currentUserStr) : {};
+
+    useEffect(() => {
+        const fetchLogs = async () => {
+            if (!currentUser?.id) return;
+            try {
+                const logsRef = collection(db, 'timekeeping_logs');
+                const q = query(
+                    logsRef, 
+                    where('userId', '==', currentUser.id)
+                );
+                const querySnapshot = await getDocs(q);
+                const fetchedLogs = querySnapshot.docs.map(doc => doc.data());
+                
+                // Mặc định sort theo ngày mới nhất lên trên
+                fetchedLogs.sort((a: any, b: any) => {
+                    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+                    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+                    return timeB - timeA;
+                });
+                setLogs(fetchedLogs);
+            } catch (error) {
+                console.error("Lỗi khi tải lịch sử chấm công:", error);
+                toast.error("Không thể tải lịch sử chấm công");
+            } finally {
+                setIsLoadingLogs(false);
+            }
+        };
+        fetchLogs();
+    }, [currentUser?.id]);
 
     const handleExportCSV = () => {
         const headers = ['Ngày', 'Thứ', 'Giờ vào', 'Giờ ra', 'Tổng giờ', 'Hình thức'];
@@ -80,7 +110,7 @@ export default function Timekeeping() {
         setElapsedTime({ hours: 0, minutes: 0, seconds: 0 });
     };
 
-    const handleCheckInOut = (action: 'in' | 'out') => {
+    const handleCheckInOut = async (action: 'in' | 'out') => {
         setLocError('');
         if (action === 'in' && !isCheckedIn) {
             if (systemConfig.radius === 0) {
@@ -151,6 +181,7 @@ export default function Timekeeping() {
             const dayNames = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
 
             const newLog = {
+                userId: currentUser.id || 'unknown',
                 dateStr: `${checkOutTime.getDate()} ${monthNames[checkOutTime.getMonth()]}, ${checkOutTime.getFullYear()}`,
                 dayStr: dayNames[checkOutTime.getDay()],
                 in: checkInTime ? formatTimeAmpm(checkInTime) : '--:--',
@@ -158,10 +189,20 @@ export default function Timekeeping() {
                 total: totalHoursStr,
                 type: 'Văn phòng',
                 tColor: '#f59e0b',
-                bg: '#f59e0b15'
+                bg: '#f59e0b15',
+                createdAt: serverTimestamp()
             };
 
-            setLogs([newLog, ...logs]);
+            try {
+                toast.loading('Đang lưu dữ liệu...', { id: 'save-log' });
+                await addDoc(collection(db, 'timekeeping_logs'), newLog);
+                setLogs([newLog, ...logs]);
+                toast.success('Ghi nhận giờ ra thành công!', { id: 'save-log' });
+            } catch (err: any) {
+                console.error(err);
+                toast.error('Lỗi lưu dữ liệu: ' + err.message, { id: 'save-log' });
+            }
+
             setIsCheckedIn(false);
             setCheckInTime(null);
             setElapsedTime({ hours: 0, minutes: 0, seconds: 0 });
@@ -382,7 +423,25 @@ export default function Timekeeping() {
                             </tr>
                         </thead>
                         <tbody>
-                            {logs.map((log, index) => (
+                            {isLoadingLogs ? (
+                                <tr>
+                                    <td colSpan={5} style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--color-text-light)' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                            <div style={{ width: '24px', height: '24px', border: '3px solid #ff7d0d', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                                            <span>Đang tải dữ liệu từ máy chủ...</span>
+                                        </div>
+                                        <style>{`
+                                            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                                        `}</style>
+                                    </td>
+                                </tr>
+                            ) : logs.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)', fontWeight: 500 }}>
+                                        Chưa có bản ghi chấm công nào được lưu trữ trên Firebase.
+                                    </td>
+                                </tr>
+                            ) : logs.map((log, index) => (
                                 <tr key={index} style={{ borderBottom: index < logs.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                                     <td style={{ padding: '1.25rem 0' }}>
                                         <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text)' }}>{log.dateStr}</div>
