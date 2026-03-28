@@ -1,17 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, ArrowRight, ShieldCheck, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, ShieldCheck, UserPlus, AlertCircle } from 'lucide-react';
 
 export default function Auth() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Tự động chuyển mode dựa trên đường dẫn hiện tại (/login hay /register)
+    // Mode state
     const [isLoginMode, setIsLoginMode] = useState(location.pathname !== '/register');
     const [showPassword, setShowPassword] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
 
-    // Bắt sự kiện thay đổi đường dẫn (ví dụ: người dùng bấm nút back trên trình duyệt)
+    // Form states
+    const [name, setName] = useState('');
+    const [department, setDepartment] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    
+    // Error state
+    const [error, setError] = useState('');
+
     useEffect(() => {
         setIsLoginMode(location.pathname !== '/register');
     }, [location.pathname]);
@@ -22,16 +31,71 @@ export default function Auth() {
 
     const toggleMode = (e: React.MouseEvent) => {
         e.preventDefault();
-        // Chuyển đường link ảo nhưng không tải lại trang
+        setError('');
+        setPassword('');
+        setConfirmPassword('');
         navigate(isLoginMode ? '/register' : '/login');
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // Cấp quyền và lưu cờ đã đăng nhập (mô phỏng login/register thành công)
-        localStorage.setItem('isAuthenticated', 'true');
-        navigate('/timekeeping');
+        setError('');
+
+        // 1. Fetch Users Database from LocalStorage (Mock DB)
+        const usersStr = localStorage.getItem('app_users');
+        const users = usersStr ? JSON.parse(usersStr) : [];
+
+        if (!isLoginMode) {
+            // REGISTRATION LOGIC
+            // Validate password match
+            if (password !== confirmPassword) {
+                setError('Xác nhận mật khẩu không khớp. Vui lòng thử lại.');
+                return;
+            }
+
+            // Check if email already exists
+            const existingUser = users.find((u: any) => u.email === email);
+            if (existingUser) {
+                setError('Địa chỉ Hộp thư này đã được đăng ký trên hệ thống.');
+                return;
+            }
+            
+            // Create user object and push to Mock DB
+            const newUser = { 
+                id: Date.now().toString(), 
+                name, 
+                department, 
+                email, 
+                password 
+            };
+            users.push(newUser);
+            localStorage.setItem('app_users', JSON.stringify(users));
+
+            // Auto log in after successful registration
+            localStorage.setItem('isAuthenticated', 'true');
+            localStorage.setItem('currentUser', JSON.stringify(newUser));
+            navigate('/timekeeping');
+        } else {
+            // LOGIN LOGIC
+            // Find user by email
+            const user = users.find((u: any) => u.email === email);
+            
+            if (!user) {
+                setError('Tài khoản không tồn tại. Vui lòng kiểm tra lại hộp thư.');
+                return;
+            }
+
+            // Verify password
+            if (user.password !== password) {
+                setError('Mật khẩu không chính xác.');
+                return;
+            }
+
+            // Login successful
+            localStorage.setItem('isAuthenticated', 'true');
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            navigate('/timekeeping');
+        }
     };
 
     return (
@@ -75,6 +139,14 @@ export default function Auth() {
                         </p>
                     </div>
 
+                    {/* Error Banner */}
+                    {error && (
+                        <div className="error-banner animate-fade-in-up">
+                            <AlertCircle size={18} />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
                     <form onSubmit={handleSubmit} className={`auth-form ${!isLoginMode ? 'register-mode' : 'login-mode'}`}>
                         {/* Dynamic fields for Register mode */}
                         {!isLoginMode && (
@@ -85,13 +157,20 @@ export default function Auth() {
                                         type="text"
                                         placeholder="Tên của bạn..."
                                         required={!isLoginMode}
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
                                         className="styled-input"
                                     />
                                 </div>
                                 <div className="input-group" style={{ flex: 1.2 }}>
                                     <label>Phòng ban</label>
-                                    <select required={!isLoginMode} className="styled-input custom-select">
-                                        <option value="" disabled selected hidden>Lựa chọn...</option>
+                                    <select 
+                                        required={!isLoginMode} 
+                                        value={department}
+                                        onChange={(e) => setDepartment(e.target.value)}
+                                        className="styled-input custom-select"
+                                    >
+                                        <option value="" disabled hidden>Lựa chọn...</option>
                                         <option value="sangtao">Khối Sáng tạo</option>
                                         <option value="chienluoc">Khối Chiến lược</option>
                                         <option value="kythuat">Khối Kỹ thuật & Công nghệ</option>
@@ -105,9 +184,11 @@ export default function Auth() {
                         <div className="input-group animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                             <label>Hộp thư / Tên đăng nhập</label>
                             <input
-                                type="text"
+                                type="email"
                                 placeholder="name@smileyagency.com"
                                 required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 className="styled-input"
                             />
                         </div>
@@ -120,8 +201,11 @@ export default function Auth() {
                             <div className="password-wrapper">
                                 <input
                                     type={showPassword ? "text" : "password"}
-                                    placeholder={isLoginMode ? "••••••••••••" : "Tạo mật khẩu mạnh..."}
+                                    placeholder={isLoginMode ? "••••••••••••" : "Tối thiểu 8 ký tự..."}
                                     required
+                                    minLength={8}
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
                                     className="styled-input"
                                 />
                                 <button
@@ -142,13 +226,20 @@ export default function Auth() {
                                     type="password"
                                     placeholder="Gõ lại mật khẩu phía trên..."
                                     required={!isLoginMode}
+                                    minLength={8}
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
                                     className="styled-input"
                                 />
                             </div>
                         )}
 
-                        <button type="submit" className="submit-btn group animate-fade-in-up" style={{ animationDelay: isLoginMode ? '0.3s' : '0.4s' }}>
-                            {isLoginMode ? 'Đăng nhập hệ thống' : 'Tạo tài khoản'}
+                        <button 
+                            type="submit" 
+                            className="submit-btn group animate-fade-in-up" 
+                            style={{ animationDelay: isLoginMode ? '0.3s' : '0.4s' }}
+                        >
+                            {isLoginMode ? 'Đăng nhập hệ thống' : 'Tạo tài khoản & Đăng nhập'}
                             {isLoginMode ? <ArrowRight size={18} className="btn-icon" /> : <UserPlus size={18} className="btn-icon-bounce" />}
                         </button>
                     </form>
@@ -272,7 +363,7 @@ export default function Auth() {
                 }
 
                 .form-header {
-                    margin-bottom: 2.5rem;
+                    margin-bottom: 2rem;
                 }
 
                 .form-header h2 {
@@ -287,11 +378,26 @@ export default function Auth() {
                     color: #666;
                     font-size: 0.95rem;
                 }
+                
+                .error-banner {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    background-color: #fef2f2;
+                    color: #b91c1c;
+                    padding: 0.85rem 1rem;
+                    border-radius: 0.75rem;
+                    margin-bottom: 1.5rem;
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                    border: 1px solid #fca5a5;
+                    box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.05);
+                }
 
                 .auth-form {
                     display: flex;
                     flex-direction: column;
-                    gap: 1.5rem;
+                    gap: 1.25rem;
                 }
 
                 .input-row {
@@ -340,7 +446,7 @@ export default function Auth() {
                     font-size: 0.95rem;
                     outline: none;
                     font-family: inherit;
-                    color: #333;
+                    color: #1a1a1a;
                     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
                     box-shadow: 0 2px 4px rgba(0,0,0,0.01) inset;
                 }
@@ -426,7 +532,7 @@ export default function Auth() {
                 }
 
                 .form-footer {
-                    margin-top: 2.5rem;
+                    margin-top: 2rem;
                     text-align: center;
                     font-size: 0.9rem;
                     color: #666;
