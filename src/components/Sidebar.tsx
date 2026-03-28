@@ -1,7 +1,7 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
     Users, Briefcase, CalendarClock, MessageSquare,
-    BookOpen, LayoutDashboard, Settings
+    BookOpen, LayoutDashboard, Settings, LogOut
 } from 'lucide-react';
 
 const MENU_ITEMS = [
@@ -14,6 +14,8 @@ const MENU_ITEMS = [
 ];
 
 export default function Sidebar() {
+    const navigate = useNavigate();
+
     return (
         <aside className="glass-panel sidebar" style={{
             width: 'var(--sidebar-width)',
@@ -107,6 +109,35 @@ export default function Sidebar() {
                     <Settings size={20} />
                     <span>Cài đặt</span>
                 </NavLink>
+
+                <button
+                    onClick={() => {
+                        localStorage.removeItem('isAuthenticated');
+                        navigate('/login');
+                    }}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.75rem 1rem',
+                        width: '100%',
+                        borderRadius: 'var(--border-radius-sm)',
+                        color: '#ef4444',
+                        backgroundColor: 'transparent',
+                        fontWeight: 500,
+                        transition: 'all var(--transition-fast)',
+                        border: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontFamily: 'inherit',
+                        fontSize: '1rem',
+                        marginTop: '0.5rem'
+                    }}
+                    className="hover-nav"
+                >
+                    <LogOut size={20} />
+                    <span>Đăng xuất</span>
+                </button>
             </div>
 
             {/* Adding some global hover styles specifically for sidebar */}

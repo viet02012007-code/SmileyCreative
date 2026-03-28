@@ -13,6 +13,9 @@ export default function Login() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Cấp quyền và lưu cờ đã đăng nhập
+        localStorage.setItem('isAuthenticated', 'true');
         navigate('/timekeeping');
     };
 
