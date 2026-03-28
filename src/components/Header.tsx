@@ -6,6 +6,19 @@ export default function Header() {
     const [showNotifications, setShowNotifications] = useState(false);
     const notificationsRef = useRef<HTMLDivElement>(null);
 
+    // Lấy thông tin user hiện tại
+    const currentUserStr = localStorage.getItem('currentUser');
+    const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null;
+    
+    // Fallback info
+    const userName = currentUser?.name || 'Nhân viên';
+    const userRole = currentUser?.department === 'sangtao' ? 'Khối Sáng tạo' :
+                     currentUser?.department === 'chienluoc' ? 'Khối Chiến lược' :
+                     currentUser?.department === 'kythuat' ? 'Khối Kỹ thuật & Công nghệ' :
+                     currentUser?.department === 'khachhang' ? 'Khối Quản lý Khách hàng' :
+                     currentUser?.department || 'Thành viên';
+    const userAvatar = currentUser?.avatar || 'https://i.pravatar.cc/150?img=11';
+
     // Close when click outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -157,8 +170,8 @@ export default function Header() {
                     color: 'inherit'
                 }}>
                     <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Nguyễn Hoàng Đức Việt</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>Quản trị viên</div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{userName}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', textTransform: 'capitalize' }}>{userRole}</div>
                     </div>
                     <div style={{
                         width: '40px',
@@ -170,11 +183,16 @@ export default function Header() {
                         justifyContent: 'center',
                         color: 'white',
                         overflow: 'hidden',
-                        transition: 'transform 0.2s'
+                        transition: 'transform 0.2s',
+                        fontSize: '1.2rem'
                     }}
                         onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
                         onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                        <img src="https://i.pravatar.cc/150?img=11" alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        {userAvatar.startsWith('http') || userAvatar.startsWith('data:') ? (
+                            <img src={userAvatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                            userAvatar
+                        )}
                     </div>
                 </Link>
             </div>

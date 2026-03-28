@@ -2,20 +2,24 @@ import { useState, useRef, useEffect } from 'react';
 import { User, Bell, Settings as SettingsIcon } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
-const INITIAL_PROFILE = {
-    name: 'Alex Sterling',
-    email: 'alex@smiley.agency',
-    role: 'Giám đốc điều hành',
-    phone: '',
-    address: '',
-    avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256&h=256'
-};
-
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('profile');
-    const [profile, setProfile] = useLocalStorage('smiley_settings_profile', INITIAL_PROFILE);
+    // Pull from active logged in user
+    const currentUserStr = localStorage.getItem('currentUser');
+    const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null;
+    
+    const initialProfile = {
+        name: currentUser?.name || 'Nhân viên',
+        email: currentUser?.email || 'Chưa cập nhật',
+        role: currentUser?.department || 'Phòng ban',
+        phone: currentUser?.phone || '',
+        address: currentUser?.address || '',
+        avatar: currentUser?.avatar || 'https://i.pravatar.cc/150?img=11'
+    };
+
+    const [profile, setProfile] = useLocalStorage('currentUser', initialProfile);
     const [systemConfig, setSystemConfig] = useLocalStorage('smiley_system_settings', { radius: 1, coords: '21.028511, 105.804817' });
-    const [formData, setFormData] = useState(INITIAL_PROFILE);
+    const [formData, setFormData] = useState(initialProfile);
     const [systemFormData, setSystemFormData] = useState(systemConfig);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -53,7 +57,20 @@ export default function Settings() {
     };
 
     const handleSave = () => {
-        setProfile(formData);
+        // Mở rộng thông tin form kèm các id cũ
+        const updatedUser = { ...currentUser, ...formData, department: formData.role };
+        
+        // Lưu cho phiên hiện tại
+        setProfile(updatedUser);
+        
+        // Đồng thời ghi lại thay đổi vào sổ users hệ thống để lần sau đăng nhập không bị mất
+        const usersStr = localStorage.getItem('app_users');
+        if (usersStr) {
+            let users = JSON.parse(usersStr);
+            users = users.map((u: any) => u.email === updatedUser.email ? updatedUser : u);
+            localStorage.setItem('app_users', JSON.stringify(users));
+        }
+        
         alert('Đã lưu thay đổi hồ sơ thành công!');
     };
 
