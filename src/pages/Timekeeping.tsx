@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogIn, LogOut, Download, Clock, Calendar, ChevronDown, Monitor, Search } from 'lucide-react';
+import { LogIn, LogOut, Download, Clock, Calendar, ChevronDown, Monitor, Search, AlertCircle } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export default function Timekeeping() {
@@ -60,6 +60,7 @@ export default function Timekeeping() {
 
     const [systemConfig] = useLocalStorage('smiley_system_settings', { radius: 1, coords: '21.028511, 105.804817' });
     const [isCheckingLoc, setIsCheckingLoc] = useState(false);
+    const [locError, setLocError] = useState('');
 
     // Haversine formula
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -80,6 +81,7 @@ export default function Timekeeping() {
     };
 
     const handleCheckInOut = (action: 'in' | 'out') => {
+        setLocError('');
         if (action === 'in' && !isCheckedIn) {
             if (systemConfig.radius === 0) {
                 performCheckIn();
@@ -87,7 +89,7 @@ export default function Timekeeping() {
             }
 
             if (!navigator.geolocation) {
-                alert('Trình duyệt của bạn không hỗ trợ định vị vị trí (Geolocation).');
+                setLocError('Trình duyệt của bạn không hỗ trợ công nghệ định vị vị trí (Geolocation).');
                 return;
             }
 
@@ -103,7 +105,7 @@ export default function Timekeeping() {
                     const compLng = parseFloat(compLngStr);
 
                     if (isNaN(compLat) || isNaN(compLng)) {
-                        alert('Tọa độ công ty thiết lập không hợp lệ. Vui lòng kiểm tra lại cấu hình hệ thống.');
+                        setLocError('Tọa độ công ty thiết lập không hợp lệ. Vui lòng kiểm tra lại cấu hình hệ thống.');
                         return;
                     }
 
@@ -111,12 +113,12 @@ export default function Timekeeping() {
                     if (distKm <= systemConfig.radius) {
                         performCheckIn();
                     } else {
-                        alert(`Bạn đang ở ngoài vùng chấm công! Khoảng cách hiện tại: ${(distKm).toFixed(2)}km (Lớn hơn mức cho phép là ${systemConfig.radius}km).`);
+                        setLocError(`Bạn đang ở ngoài vùng chấm công! Khoảng cách hiện tại: ${(distKm).toFixed(2)}km (Lớn hơn mức cho phép là ${systemConfig.radius}km).`);
                     }
                 },
                 (error) => {
                     setIsCheckingLoc(false);
-                    alert('Lỗi lấy vị trí: ' + error.message + '\nVui lòng cấp quyền truy cập vị trí cho trình duyệt.');
+                    setLocError('Lỗi định vị: ' + error.message + ' - Vui lòng cấp quyền truy cập vị trí trên trình duyệt.');
                 },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
@@ -298,6 +300,13 @@ export default function Timekeeping() {
                         <Monitor size={14} color="var(--color-text-light)" />
                         <span style={{ fontSize: '0.8rem', color: 'var(--color-text)', fontWeight: 500 }}>Chế độ: Tại văn phòng Agency</span>
                     </div>
+
+                    {locError && (
+                        <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '0.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', color: '#b91c1c', fontSize: '0.85rem', fontWeight: 500 }}>
+                            <AlertCircle size={16} style={{ marginTop: '0.1rem', flexShrink: 0 }} />
+                            <span>{locError}</span>
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
