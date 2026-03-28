@@ -24,7 +24,17 @@ export default function Settings() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (profile) setFormData(profile);
+        if (profile) {
+            const p = profile as any;
+            setFormData({
+                name: p.name || initialProfile.name,
+                email: p.email || initialProfile.email,
+                role: p.department || p.role || initialProfile.role,
+                phone: p.phone || initialProfile.phone,
+                address: p.address || initialProfile.address,
+                avatar: p.avatar || initialProfile.avatar
+            });
+        }
         if (systemConfig) setSystemFormData(systemConfig);
     }, [profile, systemConfig]);
 
