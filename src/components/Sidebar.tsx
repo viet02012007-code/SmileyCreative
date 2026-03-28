@@ -35,7 +35,7 @@ export default function Sidebar() {
                 marginBottom: '1rem'
             }}>
                 <img
-                    src="/logo.png"
+                    src={`${import.meta.env.BASE_URL}logo.png`}
                     alt="Smiley Agency Logo"
                     style={{
                         width: '40px',
