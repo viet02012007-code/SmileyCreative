@@ -1,20 +1,32 @@
-import { useState } from 'react';
-import { Search, Plus, Filter, Phone, Mail, MapPin, ExternalLink, Star, User, MoreHorizontal, X, Edit, Trash2 } from 'lucide-react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useState, useEffect } from 'react';
+import { Search, Plus, Filter, Phone, Mail, MapPin, Star, User, X, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-const INITIAL_CLIENTS = [
-    { id: 1, name: 'Công ty Cổ phần Công nghệ ABC', contact: 'Nguyễn Văn Tiến', role: 'Giám đốc IT', email: 'tien.nv@abc.tech', phone: '0987654321', address: 'Quận 1, TP.HCM', status: 'Khách hàng VIP', bg: 'var(--color-primary)' },
-    { id: 2, name: 'Tập đoàn Đầu tư XYZ', contact: 'Trần Quỳnh Như', role: 'Trưởng phòng Mua hàng', email: 'nhu.tq@xyz.com', phone: '0987654322', address: 'Ba Đình, Hà Nội', status: 'Khách hàng Tiềm năng', bg: 'var(--color-success)' },
-    { id: 3, name: 'Công ty TNHH Dịch vụ 123', contact: 'Lê Minh Hải', role: 'CEO', email: 'hai.lm@123.vn', phone: '0987654323', address: 'Hải Châu, Đà Nẵng', status: 'Đang thương lượng', bg: 'var(--color-warning)' },
-    { id: 4, name: 'Hệ thống Bán lẻ VinMarket', contact: 'Phạm Thu Hương', role: 'Quản lý Khu vực', email: 'huong.pt@vinmarket.com', phone: '0987654324', address: 'Cầu Giấy, Hà Nội', status: 'Khách hàng Mới', bg: 'var(--color-secondary)' },
-    { id: 5, name: 'Công ty StartUp Fintech', contact: 'Đoàn Hùng', role: 'Founder', email: 'hung.doan@fintech.io', phone: '0987654325', address: 'Quận 3, TP.HCM', status: 'Mất liên lạc', bg: 'var(--color-text-light)' },
-];
+import { db } from '../config/firebase';
+import { collection, query, getDocs, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 
 const COLORS = ['var(--color-primary)', 'var(--color-success)', 'var(--color-warning)', 'var(--color-secondary)', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 export default function CRM() {
-    const [clients, setClients] = useLocalStorage('smiley_crm_clients', INITIAL_CLIENTS);
+    const [clients, setClients] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Fetch from Firebase
+    useEffect(() => {
+        const fetchClients = async () => {
+            try {
+                const q = query(collection(db, 'crm_clients'));
+                const querySnapshot = await getDocs(q);
+                const fetchedClients = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setClients(fetchedClients);
+            } catch (error) {
+                console.error("Lỗi khi tải khách hàng CRM:", error);
+                toast.error("Không thể tải danh sách khách hàng");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchClients();
+    }, []);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<any>(null);
@@ -22,28 +34,48 @@ export default function CRM() {
         name: '', contact: '', role: '', email: '', phone: '', address: '', status: 'Khách hàng Mới'
     });
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.name || !formData.contact) {
             toast.error("Vui lòng nhập tên công ty và người liên hệ");
             return;
         }
         
-        if (editingClient) {
-            setClients(clients.map((c: any) => c.id === editingClient.id ? { ...editingClient, ...formData } : c));
-        } else {
-            const newClient = {
-                ...formData,
-                id: Date.now(),
-                bg: COLORS[Math.floor(Math.random() * COLORS.length)]
-            };
-            setClients([newClient, ...clients]);
+        toast.loading('Đang lưu thông tin khách hàng...', { id: 'save-crm' });
+        
+        try {
+            if (editingClient) {
+                const clientRef = doc(db, 'crm_clients', editingClient.id);
+                await updateDoc(clientRef, formData);
+                setClients(clients.map((c: any) => c.id === editingClient.id ? { ...editingClient, ...formData } : c));
+                toast.success('Cập nhật thành công!', { id: 'save-crm' });
+            } else {
+                const newClientData = {
+                    ...formData,
+                    bg: COLORS[Math.floor(Math.random() * COLORS.length)],
+                    createdAt: new Date().toISOString()
+                };
+                const docRef = await addDoc(collection(db, 'crm_clients'), newClientData);
+                setClients([{ id: docRef.id, ...newClientData }, ...clients]);
+                toast.success('Thêm khách hàng mới thành công!', { id: 'save-crm' });
+            }
+            closeModal();
+        } catch (error: any) {
+            console.error(error);
+            toast.error("Lỗi khi lưu khách hàng: " + error.message, { id: 'save-crm' });
         }
-        closeModal();
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = async (id: string) => {
         if (confirm("Bạn có chắc chắn muốn xóa khách hàng này?")) {
-            setClients(clients.filter((c: any) => c.id !== id));
+            toast.loading('Đang xóa khách hàng...', { id: 'delete-crm' });
+            try {
+                await deleteDoc(doc(db, 'crm_clients', id));
+                setClients(clients.filter((c: any) => c.id !== id));
+                toast.success('Đã xóa khách hàng thành công!', { id: 'delete-crm' });
+            } catch (error: any) {
+                console.error(error);
+                toast.error("Lỗi khi xóa khách hàng: " + error.message, { id: 'delete-crm' });
+            }
         }
     };
 
@@ -118,7 +150,16 @@ export default function CRM() {
 
             {/* Cards Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', flex: 1, overflowY: 'auto', paddingBottom: '1rem' }}>
-                {filteredClients.map((client: any) => (
+                {isLoading ? (
+                    <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ width: '30px', height: '30px', border: '3px solid #ff7d0d', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                        Đang lấy dữ liệu khách hàng từ Firebase...
+                    </div>
+                ) : filteredClients.length === 0 ? (
+                    <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)' }}>
+                        Không tìm thấy khách hàng nào trên hệ thống.
+                    </div>
+                ) : filteredClients.map((client: any) => (
                     <div key={client.id} className="glass-panel client-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', transition: 'all var(--transition-normal)', position: 'relative' }}>
 
                         {/* Card Header & Controls */}
@@ -181,12 +222,6 @@ export default function CRM() {
 
                     </div>
                 ))}
-
-                {filteredClients.length === 0 && (
-                    <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)' }}>
-                        Không tìm thấy khách hàng nào khớp với tìm kiếm.
-                    </div>
-                )}
             </div>
 
             {/* Add/Edit Modal */}

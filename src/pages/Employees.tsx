@@ -1,38 +1,54 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, Plus, MoreHorizontal, Mail, Phone, Briefcase, MapPin, X, Trash2 } from 'lucide-react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
 import toast from 'react-hot-toast';
-
-const MOCK_DATA = [
-    { id: 'NV001', name: 'Alex Rivera', role: 'Giám đốc Sáng tạo', department: 'SÁNG TẠO', location: 'HÀ NỘI', email: 'arivera@smiley.com', phone: '0901234567', status: 'Active', avatar: 'https://i.pravatar.cc/150?img=11', statusColor: '#10b981' },
-    { id: 'NV002', name: 'Sarah Chen', role: 'CV Chiến lược Cao cấp', department: 'CHIẾN LƯỢC', location: 'REMOTE', email: 'schen@smiley.com', phone: '0901234568', status: 'Away', avatar: 'https://i.pravatar.cc/150?img=5', statusColor: '#f59e0b' },
-    { id: 'NV003', name: 'Jordan Smith', role: 'Kỹ sư Dữ liệu', department: 'KỸ THUẬT', location: 'HÀ NỘI', email: 'jsmith@smiley.com', phone: '0901234569', status: 'Active', avatar: 'https://i.pravatar.cc/150?img=12', statusColor: '#10b981' },
-    { id: 'NV004', name: 'Elena Rodriguez', role: 'Trưởng nhóm Kỹ thuật', department: 'KỸ THUẬT', location: 'TP. HCM', email: 'erodriguez@smiley.com', phone: '0901234570', status: 'Offline', avatar: 'https://i.pravatar.cc/150?img=9', statusColor: '#9ca3af' },
-    { id: 'NV005', name: 'Marcus Thorne', role: 'Chuyên viên Account', department: 'KHÁCH HÀNG', location: 'TP. HCM', email: 'mthorne@smiley.com', phone: '0901234571', status: 'Active', avatar: 'https://i.pravatar.cc/150?img=13', statusColor: '#10b981' },
-    { id: 'NV006', name: 'Priya Kapoor', role: 'Thiết kế UI/UX', department: 'SÁNG TẠO', location: 'HÀ NỘI', email: 'pkapoor@smiley.com', phone: '0901234572', status: 'Active', avatar: 'https://i.pravatar.cc/150?img=20', statusColor: '#10b981' },
-    { id: 'NV007', name: 'David Park', role: 'Trưởng nhóm Nội dung', department: 'SÁNG TẠO', location: 'REMOTE', email: 'dpark@smiley.com', phone: '0901234573', status: 'Away', avatar: 'https://i.pravatar.cc/150?img=33', statusColor: '#f59e0b' },
-    { id: 'NV008', name: 'Sophie Muller', role: 'Quản lý Dự án', department: 'VẬN HÀNH', location: 'TP. HCM', email: 'smuller@smiley.com', phone: '0901234574', status: 'Active', avatar: 'https://i.pravatar.cc/150?img=44', statusColor: '#10b981' },
-];
+import { db } from '../config/firebase';
+import { collection, query, getDocs, setDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 
 export default function Employees() {
-    const [employees, setEmployees] = useLocalStorage('smiley_employees', MOCK_DATA);
+    const [employees, setEmployees] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchEmployees = async () => {
+            try {
+                const q = query(collection(db, 'employees'));
+                const querySnapshot = await getDocs(q);
+                const fetchedEmployees = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                setEmployees(fetchedEmployees);
+            } catch (error) {
+                console.error("Lỗi khi tải danh sách nhân sự:", error);
+                toast.error("Không thể tải danh sách nhân sự");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchEmployees();
+    }, []);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedUser, setSelectedUser] = useState<typeof MOCK_DATA[0] | null>(null);
+    const [selectedUser, setSelectedUser] = useState<any | null>(null);
     const [isEditing, setIsEditing] = useState(false);
-    const [editedUser, setEditedUser] = useState<typeof MOCK_DATA[0] | null>(null);
+    const [editedUser, setEditedUser] = useState<any | null>(null);
     const [isAdding, setIsAdding] = useState(false);
-    const [newUser, setNewUser] = useState<Partial<typeof MOCK_DATA[0]>>({ status: 'Active', avatar: 'https://i.pravatar.cc/150?img=1', statusColor: '#10b981' });
+    const [newUser, setNewUser] = useState<any>({ status: 'Active', avatar: 'https://i.pravatar.cc/150?img=1', statusColor: '#10b981' });
     const [activeFilter, setActiveFilter] = useState('Tất cả');
 
     const filters = ['Tất cả', 'Sáng tạo', 'Chiến lược', 'Kỹ thuật', 'Khách hàng'];
 
-    const handleDelete = (id: string, e?: React.MouseEvent) => {
+    const handleDelete = async (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (confirm('Bạn có chắc chắn muốn xóa nhân sự này?')) {
-            setEmployees(employees.filter((emp: any) => emp.id !== id));
-            if (selectedUser?.id === id) {
-                setSelectedUser(null);
-                setIsEditing(false);
+            toast.loading('Đang xóa nhân sự...', { id: 'del-emp' });
+            try {
+                await deleteDoc(doc(db, 'employees', id));
+                setEmployees(employees.filter((emp: any) => emp.id !== id));
+                if (selectedUser?.id === id) {
+                    setSelectedUser(null);
+                    setIsEditing(false);
+                }
+                toast.success('Đã xóa nhân sự thành công!', { id: 'del-emp' });
+            } catch (error: any) {
+                console.error(error);
+                toast.error("Lỗi khi xóa: " + error.message, { id: 'del-emp' });
             }
         }
     };
@@ -138,7 +154,16 @@ export default function Employees() {
 
             {/* User Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem', overflowY: 'auto', paddingBottom: '1rem' }}>
-                {filtered.map((emp) => (
+                {isLoading ? (
+                    <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ width: '30px', height: '30px', border: '3px solid #ff7d0d', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                        Đang lấy dữ liệu nhân sự từ Firebase...
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)' }}>
+                        Không có nhân sự nào khớp với kết quả tìm kiếm.
+                    </div>
+                ) : filtered.map((emp) => (
                     <div key={emp.id} className="glass-panel" style={{ padding: '1.5rem', background: 'var(--color-surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: '1rem', position: 'relative' }}>
                         <button onClick={(e) => handleDelete(emp.id, e)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', outline: 'none' }} title="Xóa nhân sự">
                             <Trash2 size={16} />
@@ -310,18 +335,36 @@ export default function Employees() {
                                     </div>
 
                                     <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
-                                        <button className="btn btn-primary" style={{ flex: 1, border: '2px solid #000', boxShadow: '0 2px 0 #000' }} onClick={() => {
+                                        <button className="btn btn-primary" style={{ flex: 1, border: '2px solid #000', boxShadow: '0 2px 0 #000' }} onClick={async () => {
                                             if (isAdding) {
                                                 if (!newUser.name || !newUser.id) {
                                                     toast.error('Vui lòng nhập tên và mã NV');
                                                     return;
                                                 }
-                                                setEmployees([newUser as typeof MOCK_DATA[0], ...employees]);
-                                                setIsAdding(false);
+                                                toast.loading('Đang thêm nhân sự...', { id: 'save-emp' });
+                                                try {
+                                                    const newEmpData = { ...newUser, createdAt: new Date().toISOString() };
+                                                    await setDoc(doc(db, 'employees', String(newUser.id)), newEmpData);
+                                                    setEmployees([{ ...newEmpData, id: newUser.id } as any, ...employees]);
+                                                    setIsAdding(false);
+                                                    toast.success('Thêm nhân sự thành công!', { id: 'save-emp' });
+                                                } catch (err: any) {
+                                                    toast.error('Lỗi: ' + err.message, { id: 'save-emp' });
+                                                }
                                             } else if (editedUser) {
-                                                setEmployees(employees.map((emp: any) => emp.id === editedUser.id ? editedUser : emp));
-                                                setSelectedUser(editedUser);
-                                                setIsEditing(false);
+                                                toast.loading('Đang cập nhật...', { id: 'save-emp' });
+                                                try {
+                                                    const empRef = doc(db, 'employees', editedUser.id);
+                                                    const updateData = { ...editedUser };
+                                                    delete updateData.id; // don't update ID field itself since it's the doc key
+                                                    await updateDoc(empRef, updateData);
+                                                    setEmployees(employees.map((emp: any) => emp.id === editedUser.id ? editedUser : emp));
+                                                    setSelectedUser(editedUser);
+                                                    setIsEditing(false);
+                                                    toast.success('Cập nhật thành công!', { id: 'save-emp' });
+                                                } catch (err: any) {
+                                                    toast.error('Lỗi: ' + err.message, { id: 'save-emp' });
+                                                }
                                             }
                                         }}>Lưu thay đổi</button>
                                         <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setIsEditing(false); setIsAdding(false); }}>Hủy</button>
