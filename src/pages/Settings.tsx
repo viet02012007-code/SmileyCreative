@@ -1,15 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { User, Bell, Settings as SettingsIcon } from 'lucide-react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useAuth } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('profile');
-    // Pull from active logged in user
-    const currentUserStr = localStorage.getItem('currentUser');
-    const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null;
+    const { currentUser } = useAuth();
     
     const initialProfile = {
         name: currentUser?.name || 'Nhân viên',
@@ -20,7 +18,6 @@ export default function Settings() {
         avatar: currentUser?.avatar || 'https://i.pravatar.cc/150?img=11'
     };
 
-    const [profile, setProfile] = useLocalStorage('currentUser', initialProfile);
     const [systemConfig, setSystemConfig] = useState({ radius: 1, coords: '21.028511, 105.804817' });
     const [formData, setFormData] = useState(initialProfile);
     const [systemFormData, setSystemFormData] = useState(systemConfig);
@@ -44,18 +41,17 @@ export default function Settings() {
     }, []);
 
     useEffect(() => {
-        if (profile) {
-            const p = profile as any;
+        if (currentUser) {
             setFormData({
-                name: p.name || initialProfile.name,
-                email: p.email || initialProfile.email,
-                role: p.department || p.role || initialProfile.role,
-                phone: p.phone || initialProfile.phone,
-                address: p.address || initialProfile.address,
-                avatar: p.avatar || initialProfile.avatar
+                name: currentUser.name || initialProfile.name,
+                email: currentUser.email || initialProfile.email,
+                role: currentUser.department || currentUser.role || initialProfile.role,
+                phone: currentUser.phone || initialProfile.phone,
+                address: currentUser.address || initialProfile.address,
+                avatar: currentUser.avatar || initialProfile.avatar
             });
         }
-    }, [profile]);
+    }, [currentUser]);
 
     const avatarIcons = [
         { bg: '#FFE4D6', emoji: '😊', color: '#ff7d0d' },
@@ -86,17 +82,14 @@ export default function Settings() {
     };
 
     const handleSave = async () => {
-        // Mở rộng thông tin form kèm các id cũ
         const updatedUser = { ...currentUser, ...formData, department: formData.role };
         
-        // Lưu cho phiên hiện tại
-        setProfile(updatedUser);
-        
-        // Đồng thời ghi lại thay đổi vào sổ users hệ thống trên Firestore Cloud
         if (currentUser?.id) {
             try {
                 await updateDoc(doc(db, 'users', currentUser.id), updatedUser);
-                toast.success('Đã đồng bộ thay đổi hồ sơ thành công lên đám mây Smiley!');
+                toast.success('Đã đồng bộ thay đổi hồ sơ thành công lên đám mây!', { duration: 3000 });
+                // Reload location to fetch new context and sync app-wide avatar/name
+                setTimeout(() => window.location.reload(), 1500);
             } catch (error) {
                 console.error('Lỗi khi cập nhật hồ sơ Firestore:', error);
                 toast.error('Không thể kết nối máy chủ để lưu thay đổi. Vui lòng thử lại sau.');
@@ -107,7 +100,7 @@ export default function Settings() {
     };
 
     const handleCancel = () => {
-        setFormData(profile);
+        setFormData(initialProfile);
     };
 
     return (
