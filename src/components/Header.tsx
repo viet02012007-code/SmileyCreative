@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Search, Bell, X, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { db } from '../config/firebase';
+import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch } from 'firebase/firestore';
 
 export default function Header() {
     const [showNotifications, setShowNotifications] = useState(false);
@@ -40,11 +42,53 @@ export default function Header() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const mockNotifications = [
-        { id: 1, title: 'Nhắc nhở công việc', text: 'Bạn có 1 task cần hoàn thành hôm nay', time: '10 phút trước', isNew: true },
-        { id: 2, title: 'Cập nhật hệ thống', text: 'Hệ thống sẽ bảo trì vào 00:00 đêm nay', time: '1 giờ trước', isNew: true },
-        { id: 3, title: 'Chấm công', text: 'Bạn chưa check-out ngày hôm qua', time: 'Hôm qua', isNew: false },
-    ];
+    const [notifications, setNotifications] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (!currentUser?.uid) return;
+        const q = query(collection(db, 'notifications'), where('userId', '==', String(currentUser.uid)));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            notifs.sort((a: any, b: any) => new Date(b.time).getTime() - new Date(a.time).getTime());
+            setNotifications(notifs);
+        });
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    const handleMarkAllRead = async () => {
+        try {
+            const batch = writeBatch(db);
+            let updated = false;
+            notifications.forEach(n => {
+                if (n.isNew) {
+                    batch.update(doc(db, 'notifications', n.id), { isNew: false });
+                    updated = true;
+                }
+            });
+            if (updated) await batch.commit();
+        } catch (e) {
+            console.error("Lỗi đánh dấu đã đọc", e);
+        }
+    };
+
+    const handleNotificationClick = async (n: any) => {
+        if (n.isNew) {
+            await updateDoc(doc(db, 'notifications', n.id), { isNew: false });
+        }
+        if (n.link) {
+            navigate(n.link);
+            setShowNotifications(false);
+        }
+    };
+
+    const unreadCount = notifications.filter(n => n.isNew).length;
+
+    const renderTime = (timeStr: string) => {
+        if(!timeStr) return '';
+        const d = new Date(timeStr);
+        if(isNaN(d.getTime())) return timeStr;
+        return d.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) + ' - ' + d.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'});
+    };
 
     return (
         <header className="glass-panel header" style={{
@@ -108,16 +152,18 @@ export default function Header() {
                         }}
                     >
                         <Bell size={20} color="var(--color-text-light)" />
-                        <span style={{
-                            position: 'absolute',
-                            top: '8px',
-                            right: '8px',
-                            width: '8px',
-                            height: '8px',
-                            backgroundColor: 'var(--color-danger)',
-                            borderRadius: '50%',
-                            border: '2px solid white'
-                        }}></span>
+                        {unreadCount > 0 && (
+                            <span style={{
+                                position: 'absolute',
+                                top: '8px',
+                                right: '8px',
+                                width: '8px',
+                                height: '8px',
+                                backgroundColor: 'var(--color-danger)',
+                                borderRadius: '50%',
+                                border: '2px solid white'
+                            }}></span>
+                        )}
                     </button>
 
                     {/* Dropdown Panel */}
@@ -143,28 +189,32 @@ export default function Header() {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '350px', overflowY: 'auto' }}>
-                                {mockNotifications.map(notification => (
-                                    <div key={notification.id} style={{
+                                {notifications.length === 0 ? (
+                                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.9rem' }}>Chưa có thông báo nào</div>
+                                ) : notifications.map(notification => (
+                                    <div key={notification.id} onClick={() => handleNotificationClick(notification)} style={{
                                         display: 'flex', gap: '1rem', padding: '0.75rem', borderRadius: '8px',
                                         background: notification.isNew ? 'rgba(79, 70, 229, 0.05)' : 'transparent',
                                         transition: 'all 0.2s', cursor: 'pointer'
                                     }} className="hover-bg">
-                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: notification.isNew ? 'var(--color-primary)' : 'transparent', marginTop: '6px' }} />
+                                        <div style={{ width: '8px', height: '8px', minWidth: '8px', borderRadius: '50%', background: notification.isNew ? 'var(--color-primary)' : 'transparent', marginTop: '6px' }} />
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.2rem', color: notification.isNew ? 'var(--color-text)' : 'var(--color-text-light)' }}>
                                                 {notification.title}
                                             </div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', marginBottom: '0.4rem' }}>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', marginBottom: '0.4rem', lineHeight: '1.4' }}>
                                                 {notification.text}
                                             </div>
                                             <div style={{ fontSize: '0.7rem', color: 'var(--color-primary)' }}>
-                                                {notification.time}
+                                                {renderTime(notification.time)}
                                             </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                            <button className="btn btn-secondary" style={{ width: '100%', fontSize: '0.85rem' }}>Đánh dấu đã đọc tất cả</button>
+                            {unreadCount > 0 && (
+                                <button onClick={handleMarkAllRead} className="btn btn-secondary" style={{ width: '100%', fontSize: '0.85rem' }}>Đánh dấu đã đọc tất cả</button>
+                            )}
                         </div>
                     )}
                 </div>

@@ -115,6 +115,17 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
         e.dataTransfer.setData('memberId', member.id.toString());
     };
 
+    const formatDeadline = (dl: string) => {
+        if (!dl) return 'Chưa định';
+        if (dl.includes('T')) {
+            const date = new Date(dl);
+            if (!isNaN(date.getTime())) {
+                return date.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) + ' - ' + date.toLocaleDateString('vi-VN');
+            }
+        }
+        return dl;
+    };
+
     const handleDrop = async (e: React.DragEvent, taskId: string) => {
         e.preventDefault();
         const memberId = e.dataTransfer.getData('memberId');
@@ -131,6 +142,17 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
             try {
                 await updateDoc(doc(db, 'project_tasks', String(taskId)), { assignees: updatedAssignees });
                 setTasks(tasks.map((t: any) => t.id === taskId ? { ...t, assignees: updatedAssignees } : t));
+                
+                // --- Gửi Notification phân công ---
+                await addDoc(collection(db, 'notifications'), {
+                    userId: String(member.id),
+                    title: 'Được phân công',
+                    text: `Dự án ${project?.name || ''}: Bạn được giao nhiệm vụ "${currentTask.title}".`,
+                    time: new Date().toISOString(),
+                    isNew: true,
+                    link: `/projects/${project?.id || ''}`
+                });
+
             } catch (err: any) {
                 console.error(err);
                 toast.error("Lỗi cập nhật người thực hiện: " + err.message);
@@ -183,6 +205,8 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
         if (formData.status === 'HOÀN THÀNH') statusColor = '#10B981';
         if (formData.status === 'NHÁP') statusColor = '#6B7280';
 
+        const deadlineText = formatDeadline(formData.deadline);
+
         toast.loading('Đang lưu công việc...', { id: 'save-task' });
         try {
             if (editingTask) {
@@ -190,13 +214,32 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                 await updateDoc(doc(db, 'project_tasks', String(editingTask.id)), updateData);
                 setTasks(tasks.map((t: any) => t.id === editingTask.id ? { ...t, ...updateData } : t));
                 toast.success('Cập nhật thành công', { id: 'save-task' });
+
+                // --- Gửi Notification báo cập nhật task (bao gồm hạn chót) ---
+                if (editingTask.assignees && editingTask.assignees.length > 0) {
+                    for (const assignee of editingTask.assignees) {
+                        try {
+                           await addDoc(collection(db, 'notifications'), {
+                               userId: String(assignee.id),
+                               title: 'Hạn chót công việc',
+                               text: `Dự án ${project?.name || ''}: Task "${formData.title}" cập nhật hạn chót là ${deadlineText}`,
+                               time: new Date().toISOString(),
+                               isNew: true,
+                               link: `/projects/${project?.id || ''}`
+                           });
+                        } catch (e) {
+                           console.error("Lỗi gửi thông báo", e);
+                        }
+                    }
+                }
+
             } else {
                 const newTaskData = {
                     ...formData,
                     projectId: String(project.id),
                     typeColor,
                     statusColor,
-                    assignees: []
+                    assignees: [] // Default empty when created
                 };
                 const docRef = await addDoc(collection(db, 'project_tasks'), newTaskData);
                 setTasks([...tasks, { id: docRef.id, ...newTaskData }]);
@@ -355,7 +398,7 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                                                 </div>
                                             </td>
                                             <td style={{ padding: '1rem', textAlign: 'center', color: task.deadline ? 'var(--color-text)' : 'var(--color-text-light)', fontSize: '0.9rem', fontWeight: 500 }}>
-                                                {task.deadline || '--'}
+                                                {formatDeadline(task.deadline)}
                                             </td>
                                             <td style={{ padding: '1rem', textAlign: 'center' }}>
                                                 <span style={{ backgroundColor: `${task.statusColor}15`, color: task.statusColor, padding: '0.3rem 0.8rem', borderRadius: '2rem', fontSize: '0.75rem', fontWeight: 800, whiteSpace: 'nowrap' }}>{task.status}</span>
@@ -420,7 +463,7 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div>
                                                 <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.25rem', textTransform: 'uppercase' }}>Hạn chót</div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}><Calendar size={14} color="var(--color-danger)" /> {task.deadline || 'Chưa định'}</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}><Calendar size={14} color="var(--color-danger)" /> {formatDeadline(task.deadline)}</div>
                                             </div>
                                             <div style={{ textAlign: 'right' }}>
                                                 <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.25rem', textTransform: 'uppercase' }}>Trạng thái</div>
@@ -506,7 +549,10 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                                     <option value="CHƯA BẮT ĐẦU">CHƯA BẮT ĐẦU</option><option value="NHÁP">NHÁP</option><option value="ĐANG LÀM">ĐANG LÀM</option><option value="HOÀN THÀNH">HOÀN THÀNH</option>
                                 </select>
                             </div>
-                            <input type="text" value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', outline: 'none' }} placeholder="Hạn chót VD: 30/10/2023" />
+                            <div>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Hạn chót & Báo thức</div>
+                                <input type="datetime-local" value={formData.deadline || ''} onChange={e => setFormData({...formData, deadline: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', outline: 'none', fontFamily: 'inherit' }} />
+                            </div>
                         </div>
                         <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
                             <button onClick={handleSaveTask} style={{ flex: 1, padding: '0.75rem', backgroundColor: '#ff7d0d', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>Lưu công việc</button>
