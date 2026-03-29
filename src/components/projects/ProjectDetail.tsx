@@ -325,7 +325,70 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
 
             {/* Main Content Area */}
             <div style={{ display: 'flex', flex: 1, backgroundColor: '#F9FAFB', overflow: 'hidden' }}>
-                {activeTab !== 'Tài liệu' ? (
+                {activeTab === 'Tiến độ' ? (
+                    <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+                        <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-light)', letterSpacing: '1px', marginBottom: '1.5rem', textTransform: 'uppercase' }}>Bảng Theo Dõi Tiến Độ Từng Đầu Mục</h3>
+                        <div style={{ backgroundColor: 'white', borderRadius: '1rem', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead style={{ backgroundColor: '#F9FAFB', fontSize: '0.85rem', color: 'var(--color-text-light)' }}>
+                                    <tr>
+                                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>Công việc</th>
+                                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>Người thực hiện</th>
+                                        <th style={{ padding: '1rem', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>Hạn chót</th>
+                                        <th style={{ padding: '1rem', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>Trạng thái</th>
+                                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid var(--color-border)', width: '25%' }}>Tiến độ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredTasks.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)' }}>Chưa có thể công việc nào</td>
+                                        </tr>
+                                    ) : filteredTasks.map((task: any) => {
+                                        let progressPercent = 0;
+                                        if (task.status === 'ĐANG LÀM') progressPercent = 50;
+                                        if (task.status === 'HOÀN THÀNH') progressPercent = 100;
+                                        
+                                        return (
+                                        <tr key={task.id} style={{ borderBottom: '1px solid var(--color-border)' }} className="hover-bg">
+                                            <td style={{ padding: '1rem' }}>
+                                                <div style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.25rem' }}>{task.title}</div>
+                                                <span style={{ backgroundColor: `${task.typeColor}15`, color: task.typeColor, padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800 }}>{task.type}</span>
+                                            </td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    {task.assignees && task.assignees.length > 0 ? task.assignees.map((a: any, index: number) => (
+                                                        <div key={a.id} style={{ position: 'relative', marginLeft: index > 0 ? '-10px' : '0', zIndex: 10 - index }} title={a.name}>
+                                                            {a.avatar ? (
+                                                                <img src={a.avatar} alt="Assignee" style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover' }} />
+                                                            ) : (
+                                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid white', backgroundColor: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem' }}>{a.name.charAt(0)}</div>
+                                                            )}
+                                                        </div>
+                                                    )) : <span style={{ color: 'var(--color-text-light)', fontSize: '0.85rem' }}>Chưa phân công</span>}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '1rem', textAlign: 'center', color: task.deadline ? 'var(--color-text)' : 'var(--color-text-light)', fontSize: '0.9rem', fontWeight: 500 }}>
+                                                {task.deadline || '--'}
+                                            </td>
+                                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                                <span style={{ backgroundColor: `${task.statusColor}15`, color: task.statusColor, padding: '0.3rem 0.8rem', borderRadius: '2rem', fontSize: '0.75rem', fontWeight: 800, whiteSpace: 'nowrap' }}>{task.status}</span>
+                                            </td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <div style={{ flex: 1, backgroundColor: '#E5E7EB', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                                                        <div style={{ width: `${progressPercent}%`, backgroundColor: task.statusColor, height: '100%', borderRadius: '4px', transition: 'width 0.3s ease' }}></div>
+                                                    </div>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-text-light)', width: '35px' }}>{progressPercent}%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )})}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : activeTab !== 'Tài liệu' ? (
                     <>
                         <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
                             <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-light)', letterSpacing: '1px', marginBottom: '1.5rem', textTransform: 'uppercase' }}>Các đầu việc cần phân công</h3>
