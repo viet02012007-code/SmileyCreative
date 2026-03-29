@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Filter, LayoutGrid, List, Clock, Folder, Globe, Lock, X } from 'lucide-react';
+import { Search, Plus, Filter, LayoutGrid, List, Clock, Folder, Globe, Lock, X, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../../config/firebase';
-import { collection, query, getDocs, addDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, serverTimestamp, orderBy, deleteDoc, doc } from 'firebase/firestore';
 
 export default function ProjectList({ onSelectProject }: { onSelectProject: (p: any) => void }) {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -37,6 +37,20 @@ export default function ProjectList({ onSelectProject }: { onSelectProject: (p: 
             }
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
+        e.stopPropagation();
+        if (window.confirm('Bạn có chắc chắn muốn xóa dự án này? Thao tác này không thể hoàn tác.')) {
+            toast.loading('Đang xóa dự án...', { id: 'delete' });
+            try {
+                await deleteDoc(doc(db, 'projects', projectId));
+                setProjects(projects.filter(p => p.id !== projectId));
+                toast.success('Đã xóa dự án', { id: 'delete' });
+            } catch (error: any) {
+                toast.error('Lỗi khi xóa: ' + error.message, { id: 'delete' });
+            }
         }
     };
 
@@ -122,7 +136,12 @@ export default function ProjectList({ onSelectProject }: { onSelectProject: (p: 
                                     </span>
                                 </div>
                                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-light)', margin: 0 }}>{project.description || 'Chưa có mô tả'}</p>
-                                <div style={{ marginTop: 'auto', borderTop: '1px solid var(--color-border)', paddingTop: '1rem', color: 'var(--color-primary)', fontWeight: 600, fontSize: '0.85rem' }}>Mở dự án</div>
+                                <div style={{ marginTop: 'auto', borderTop: '1px solid var(--color-border)', paddingTop: '1rem', color: 'var(--color-primary)', fontWeight: 600, fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span>Mở dự án</span>
+                                    <button onClick={(e) => handleDeleteProject(e, project.id)} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.25rem' }} title="Xóa dự án">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -133,6 +152,7 @@ export default function ProjectList({ onSelectProject }: { onSelectProject: (p: 
                                 <tr>
                                     <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>Tên Dự án</th>
                                     <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>Trạng thái</th>
+                                    <th style={{ padding: '1rem', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -140,6 +160,11 @@ export default function ProjectList({ onSelectProject }: { onSelectProject: (p: 
                                     <tr key={project.id} className="hover-bg" style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => onSelectProject(project)}>
                                         <td style={{ padding: '1rem' }}><div style={{ fontWeight: 600, color: 'var(--color-heading)', fontSize: '1rem' }}>{project.title}</div></td>
                                         <td style={{ padding: '1rem' }}><span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.3rem 0.6rem', borderRadius: '4px', backgroundColor: project.status === 'ĐANG CHẠY' ? '#ECFDF5' : '#F3F4F6', color: project.status === 'ĐANG CHẠY' ? '#10B981' : '#6B7280' }}>{project.status}</span></td>
+                                        <td style={{ padding: '1rem', textAlign: 'right' }}>
+                                            <button onClick={(e) => handleDeleteProject(e, project.id)} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', padding: '0.5rem', borderRadius: '0.25rem' }} className="hover-bg" title="Xóa dự án">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
