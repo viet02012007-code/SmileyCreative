@@ -46,8 +46,8 @@ export default function Header() {
     const [notifications, setNotifications] = useState<any[]>([]);
 
     useEffect(() => {
-        if (!currentUser?.uid) return;
-        const q = query(collection(db, 'notifications'), where('userId', '==', String(currentUser.uid)));
+        if (!currentUser?.id) return;
+        const q = query(collection(db, 'notifications'), where('userId', '==', String(currentUser.id)));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             notifs.sort((a: any, b: any) => new Date(b.time).getTime() - new Date(a.time).getTime());
@@ -60,7 +60,7 @@ export default function Header() {
     const alarmTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
     useEffect(() => {
-        if (!currentUser?.uid) return;
+        if (!currentUser?.id) return;
 
         const qTasks = query(collection(db, 'project_tasks'));
 
@@ -115,7 +115,7 @@ export default function Header() {
 
                 // Bất kỳ client nào cũng tham gia đánh giá để giúp những người offline vẫn nhận được thông báo
                 // Tuy nhiên chỉ báo Toast cho những người dùng liên quan
-                const amIAssigned = task.assignees?.some((a: any) => String(a.id) === String(currentUser.uid));
+                const amIAssigned = task.assignees?.some((a: any) => String(a.id) === String(currentUser.id));
                 const isDirector = currentUser?.department === 'giamdoc';
 
                 const deadlineDate = new Date(task.deadline);
