@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Minus, X, Users, User, Calendar, Paperclip, FileText, Mic, Circle, Triangle, UserPlus, PenSquare, PlusCircle } from 'lucide-react';
+import Avatar from './Avatar';
 
 interface CreateTaskModalProps {
     isOpen: boolean;
@@ -137,7 +138,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
                                     }}
                                 >
                                     {selectedMember ? (
-                                        <img src={selectedMember.avatar} alt={selectedMember.name} style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                                        <Avatar src={selectedMember.avatar} name={selectedMember.name} size={28} />
                                     ) : (
                                         <div style={{ backgroundColor: '#9CA3AF', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
                                             <User size={16} />
@@ -182,7 +183,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
                                                     transition: 'background-color 0.2s'
                                                 }}
                                             >
-                                                <img src={member.avatar} alt={member.name} style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
+                                                <Avatar src={member.avatar} name={member.name} size={24} />
                                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                     <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#374151' }}>{member.name}</span>
                                                     <span style={{ fontSize: '0.7rem', color: '#6B7280' }}>{member.role}</span>

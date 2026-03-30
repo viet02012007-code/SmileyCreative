@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { db, storage } from '../../config/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, doc, deleteDoc, where } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import Avatar from '../Avatar';
 
 
 export default function ProjectDetail({ project, onBack }: { project: any, onBack: () => void }) {
@@ -431,11 +432,7 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                     {task.assignees && task.assignees.length > 0 ? task.assignees.map((a: any, index: number) => (
                                                         <div key={a.id} style={{ position: 'relative', marginLeft: index > 0 ? '-10px' : '0', zIndex: 10 - index }} title={a.name}>
-                                                            {a.avatar ? (
-                                                                <img src={a.avatar} alt="Assignee" style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover' }} />
-                                                            ) : (
-                                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid white', backgroundColor: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem' }}>{a.name.charAt(0)}</div>
-                                                            )}
+                                                            <Avatar src={a.avatar} name={a.name} size={32} style={{ border: '2px solid white' }} />
                                                         </div>
                                                     )) : <span style={{ color: 'var(--color-text-light)', fontSize: '0.85rem' }}>Chưa phân công</span>}
                                                 </div>
@@ -484,11 +481,7 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                                                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', width: '100%' }}>
                                                         {task.assignees.map((a: any) => (
                                                             <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#F9FAFB', border: '1px solid var(--color-border)', borderRadius: '2rem', padding: '0.25rem 0.5rem 0.25rem 0.25rem' }}>
-                                                                {a.avatar ? (
-                                                                    <img src={a.avatar} alt="Assignee" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
-                                                                ) : (
-                                                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem' }}>{a.name.charAt(0)}</div>
-                                                                )}
+                                                                <Avatar src={a.avatar} name={a.name} size={28} />
                                                                 <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{a.name}</span>
                                                                 <button onClick={(e) => handleRemoveAssignee(task.id, a.id, e)} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', marginLeft: '0.25rem' }} title="Gỡ"><X size={12} /></button>
                                                             </div>
@@ -557,7 +550,7 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                                     {filteredTeam.map((member: any) => (
                                         <div key={member.id} draggable={!member.locked} onDragStart={(e) => handleDragStart(e, member)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: '0.75rem', backgroundColor: 'white', cursor: member.locked ? 'not-allowed' : 'grab', opacity: member.locked ? 0.6 : 1 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                {member.avatar ? <img src={member.avatar} alt={member.name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{member.name.charAt(0)}</div>}
+                                                <Avatar src={member.avatar} name={member.name} size={40} />
                                                 <div style={{ pointerEvents: 'none' }}><div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text)' }}>{member.name}</div><div style={{ fontSize: '0.8rem', color: 'var(--color-text-light)' }}>{member.role}</div></div>
                                             </div>
                                         </div>

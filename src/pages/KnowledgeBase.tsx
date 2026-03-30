@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ThumbsUp, MessageSquare, Share2, Image as ImageIcon, Video, Link as LinkIcon, Send, Smile, X } from 'lucide-react';
 import PageTransition from '../components/PageTransition';
+import Avatar from '../components/Avatar';
 
 type Comment = {
     id: number;
@@ -198,7 +199,7 @@ export default function KnowledgeBase() {
                 {/* Create Post */}
                 <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', gap: '1rem' }}>
-                        <img src="https://i.pravatar.cc/150?img=11" alt="Me" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                        <Avatar src="https://i.pravatar.cc/150?img=11" name="Me" size={40} />
                         <textarea
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
@@ -261,7 +262,7 @@ export default function KnowledgeBase() {
                         <div key={post.id} className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.3s' }}>
                             {/* Header */}
                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                <img src={post.avatar} alt={post.author} style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }} />
+                                <Avatar src={post.avatar} name={post.author} size={48} />
                                 <div>
                                     <div style={{ fontWeight: 600 }}>{post.author}</div>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--color-text-light)' }}>{post.role} • {post.time}</div>
@@ -333,7 +334,7 @@ export default function KnowledgeBase() {
                                         <div key={comment.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                             {/* Parent Comment */}
                                             <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                                <img src={comment.avatar} alt={comment.author} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
+                                                <Avatar src={comment.avatar} name={comment.author} size={36} />
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ background: 'rgba(128, 128, 128, 0.1)', padding: '0.5rem 0.85rem', borderRadius: '1.25rem', display: 'inline-block' }}>
                                                         <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--color-heading)' }}>{comment.author}</div>
@@ -358,7 +359,7 @@ export default function KnowledgeBase() {
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginLeft: '2.5rem' }}>
                                                     {comment.replies.map(reply => (
                                                         <div key={reply.id} style={{ display: 'flex', gap: '0.75rem' }}>
-                                                            <img src={reply.avatar} alt={reply.author} style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                                                            <Avatar src={reply.avatar} name={reply.author} size={28} />
                                                             <div style={{ flex: 1 }}>
                                                                 <div style={{ background: 'rgba(128, 128, 128, 0.1)', padding: '0.4rem 0.75rem', borderRadius: '1.25rem', display: 'inline-block' }}>
                                                                     <div style={{ fontWeight: 600, fontSize: '0.75rem', color: 'var(--color-heading)' }}>{reply.author}</div>
@@ -385,7 +386,7 @@ export default function KnowledgeBase() {
 
                                     {/* Comment form */}
                                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                                        <img src="https://i.pravatar.cc/150?img=11" alt="Me" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+                                        <Avatar src="https://i.pravatar.cc/150?img=11" name="Me" size={32} />
                                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                             {replyingTo?.postId === post.id && (
                                                 <div style={{ fontSize: '0.8rem', color: 'var(--color-primary)', display: 'flex', justifyContent: 'space-between', paddingLeft: '0.5rem' }}>

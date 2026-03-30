@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { db } from '../config/firebase';
 import { collection, query, getDocs, setDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import PageTransition from '../components/PageTransition';
+import Avatar from '../components/Avatar';
 
 export default function Employees() {
     const [employees, setEmployees] = useState<any[]>([]);
@@ -171,7 +172,7 @@ export default function Employees() {
                         </button>
 
                         <div style={{ position: 'relative', marginBottom: '1rem', marginTop: '0.5rem' }}>
-                            <img src={emp.avatar} alt={emp.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--color-surface)', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} />
+                            <Avatar src={emp.avatar} name={emp.name} size={80} style={{ border: '3px solid var(--color-surface)', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} />
                             <div style={{
                                 position: 'absolute', bottom: '0', right: '0',
                                 width: '18px', height: '18px', borderRadius: '50%',
@@ -249,10 +250,12 @@ export default function Employees() {
 
                         <div style={{ padding: '0 2rem 2rem 2rem', position: 'relative' }}>
                             <div style={{ position: 'relative', width: '100px', height: '100px', marginTop: '-50px', marginBottom: '1rem', zIndex: 10 }}>
-                                <img src={isAdding ? newUser.avatar : (isEditing ? editedUser?.avatar : selectedUser?.avatar)} alt={isAdding ? "New User" : selectedUser?.name} style={{
-                                    width: '100px', height: '100px', borderRadius: '50%', border: '4px solid var(--color-surface)',
-                                    objectFit: 'cover', backgroundColor: 'white'
-                                }} />
+                                <Avatar 
+                                    src={isAdding ? newUser.avatar : (isEditing ? editedUser?.avatar : selectedUser?.avatar)} 
+                                    name={isAdding ? "New User" : selectedUser?.name}
+                                    size={100}
+                                    style={{ border: '4px solid var(--color-surface)', backgroundColor: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}
+                                />
                                 {(isEditing || isAdding) && (
                                     <button
                                         onClick={() => {

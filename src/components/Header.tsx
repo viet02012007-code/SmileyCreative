@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
 import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, addDoc, runTransaction } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import Avatar from './Avatar';
 
 export default function Header() {
     const [showNotifications, setShowNotifications] = useState(false);
@@ -330,30 +331,14 @@ export default function Header() {
                         padding: '0.25rem 0.5rem',
                         borderRadius: '8px'
                     }}>
-                        <div style={{ textAlign: 'right' }}>
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                             <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{userName}</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', textTransform: 'capitalize' }}>{userRole}</div>
                         </div>
-                        <div style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            background: 'linear-gradient(135deg, var(--color-secondary), var(--color-primary))',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white',
-                            overflow: 'hidden',
-                            transition: 'transform 0.2s',
-                            fontSize: '1.2rem'
-                        }}
+                        <div style={{ transition: 'transform 0.2s', display: 'flex' }}
                             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
                             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                            {userAvatar.startsWith('http') || userAvatar.startsWith('data:') ? (
-                                <img src={userAvatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                                userAvatar
-                            )}
+                            <Avatar src={userAvatar} name={userName} size={40} />
                         </div>
                     </Link>
 

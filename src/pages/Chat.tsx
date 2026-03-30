@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, Send, Phone, Video, MoreVertical, Image as ImageIcon, Paperclip, Smile } from 'lucide-react';
 import PageTransition from '../components/PageTransition';
+import Avatar from '../components/Avatar';
 
 const mockChats = [
     { id: 1, name: 'Phòng Phát triển Sản phẩm', lastMsg: 'Anh push code lên nhánh dev rồi nhé', time: '10:30', unread: 2, avatar: 'https://i.pravatar.cc/150?img=1', isGroup: true },
@@ -82,7 +83,7 @@ export default function Chat() {
                             transition: 'background 0.2s'
                         }} className="chat-item">
                             <div style={{ position: 'relative' }}>
-                                <img src={chat.avatar} alt={chat.name} style={{ width: '48px', height: '48px', borderRadius: chat.isGroup ? '16px' : '50%', objectFit: 'cover' }} />
+                                <Avatar src={chat.avatar} name={chat.name} size={48} style={{ borderRadius: chat.isGroup ? '16px' : '50%' }} />
                                 {!chat.isGroup && <div style={{ position: 'absolute', bottom: '0', right: '0', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--color-success)', border: '2px solid var(--color-surface)' }}></div>}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -106,7 +107,7 @@ export default function Chat() {
                 {/* Chat Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <img src={activeChat.avatar} alt={activeChat.name} style={{ width: '40px', height: '40px', borderRadius: activeChat.isGroup ? '12px' : '50%', objectFit: 'cover' }} />
+                        <Avatar src={activeChat.avatar} name={activeChat.name} size={40} style={{ borderRadius: activeChat.isGroup ? '12px' : '50%' }} />
                         <div>
                             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>{activeChat.name}</h3>
                             <span style={{ fontSize: '0.8rem', color: 'var(--color-success)' }}>{activeChat.isGroup ? '24 thành viên' : 'Đang hoạt động'}</span>
@@ -126,7 +127,7 @@ export default function Chat() {
                     {currentMessages.map((msg: any) => (
                         <div key={msg.id} style={{ display: 'flex', gap: '1rem', alignSelf: msg.isMine ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
                             {!msg.isMine && msg.avatar && (
-                                <img src={msg.avatar} alt="User" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                                <Avatar src={msg.avatar} size={32} />
                             )}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: msg.isMine ? 'flex-end' : 'flex-start' }}>
                                 <span style={{ fontSize: '0.8rem', color: 'var(--color-text-light)' }}>{msg.sender}, {msg.time}</span>
