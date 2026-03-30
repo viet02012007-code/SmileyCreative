@@ -2,21 +2,29 @@ import { useAuth } from '../contexts/AuthContext';
 
 export function useAdminAccess() {
     const { currentUser } = useAuth();
-
     if (!currentUser) return false;
 
-    // Chuẩn hóa chuỗi để kiểm tra (viết hoa, xóa khoảng trắng thừa)
     const role = (currentUser.role || '').toUpperCase().trim();
     const department = (currentUser.department || '').toUpperCase().trim();
     
-    // Nếu tài khoản chưa từng được cập nhật Profile (có thể là admin cũ), hoặc role chưa cập nhật
-    // Tạm thời cho phép bypass dựa trên email phổ biến của owner hoặc từ khóa rộng hơn
-    const adminKeywords = ['ADMIN', 'GIÁM ĐỐC', 'TRƯỞNG PHÒNG', 'GIAM DOC', 'TRUONG PHONG', 'MANAGER', 'QUẢN LÝ', 'QUAN LY'];
+    // Các từ khóa quyền lực (chấp nhận viết liền hoặc có dấu)
+    const adminKeywords = [
+        'ADMIN', 'GIÁM ĐỐC', 'GIAMDOC', 'GIAM DOC', 
+        'TRƯỞNG PHÒNG', 'TRUONGPHONG', 'TRUONG PHONG', 
+        'MANAGER', 'QUẢN LÝ', 'QUANLY', 'QUAN LY'
+    ];
     
-    const hasAdminRole = adminKeywords.some(keyword => role.includes(keyword) || department.includes(keyword));
-    
-    // Hoặc cấp quyền tự động cho email quản trị viên mặc định nếu chưa kịp cập nhật chức vụ
-    const isOwnerEmail = currentUser.email?.toLowerCase().includes('admin') || currentUser.email?.toLowerCase().includes('viet');
+    // Chuẩn hóa chuỗi bằng cách xóa toàn bộ dấu cách để dễ so sánh bằng chính xác
+    const normalizedRole = role.replace(/\s+/g, '');
+    const normalizedDept = department.replace(/\s+/g, '');
 
-    return hasAdminRole || isOwnerEmail || (role === '' && department === ''); // Fallback tạm thời nếu trống
+    const hasAdminRole = adminKeywords.some(keyword => {
+        const normalizedKeyword = keyword.replace(/\s+/g, '');
+        return normalizedRole === normalizedKeyword || normalizedDept === normalizedKeyword;
+    });
+
+    // Chỉ dự phòng cho tài khoản quản trị gốc thực sự nêú rỗng
+    const isSuperAdminEmail = currentUser.email === 'admin@smiley.com' || currentUser.email === 'admin@admin.com';
+
+    return hasAdminRole || isSuperAdminEmail;
 }
