@@ -36,7 +36,7 @@ export default function Employees() {
     const [newUser, setNewUser] = useState<any>({ status: 'Active', avatar: 'https://i.pravatar.cc/150?img=1', statusColor: '#10b981' });
     const [activeFilter, setActiveFilter] = useState('Tất cả');
 
-    const filters = ['Tất cả', 'Giám Đốc', 'Trưởng Phòng', 'Nhân Viên'];
+    const filters = ['Tất cả', 'Admin', 'Giám Đốc', 'Trưởng Phòng', 'Nhân Viên'];
 
     const handleDelete = async (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();

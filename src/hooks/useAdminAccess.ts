@@ -24,7 +24,9 @@ export function useAdminAccess() {
     });
 
     // Chỉ dự phòng cho tài khoản quản trị gốc thực sự nêú rỗng
-    const isSuperAdminEmail = currentUser.email === 'admin@smiley.com' || currentUser.email === 'admin@admin.com';
+    const isSuperAdminEmail = 
+        currentUser.email === 'nguyenviet212007@gmail.com' || 
+        currentUser.email === 'admin@smiley.com';
 
     return hasAdminRole || isSuperAdminEmail;
 }
