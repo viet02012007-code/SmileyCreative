@@ -5,10 +5,12 @@ import { db } from '../config/firebase';
 import { doc, updateDoc, getDoc, setDoc, query, collection, getDocs, writeBatch } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import PageTransition from '../components/PageTransition';
+import { useAdminAccess } from '../hooks/useAdminAccess';
 
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('profile');
     const { currentUser } = useAuth();
+    const hasAccess = useAdminAccess();
     
     const initialProfile = {
         name: currentUser?.name || 'Nhân viên',
@@ -169,7 +171,7 @@ export default function Settings() {
                     {[
                         { id: 'profile', icon: User, label: 'Hồ sơ cá nhân' },
                         { id: 'notifications', icon: Bell, label: 'Thông báo' },
-                        { id: 'system', icon: SettingsIcon, label: 'Cấu hình hệ thống' }
+                        ...(hasAccess ? [{ id: 'system', icon: SettingsIcon, label: 'Cấu hình hệ thống' }] : [])
                     ].map(tab => (
                         <button
                             key={tab.id}
