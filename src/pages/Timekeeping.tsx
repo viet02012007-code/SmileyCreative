@@ -4,6 +4,7 @@ import { db } from '../config/firebase';
 import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import PageTransition from '../components/PageTransition';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Timekeeping() {
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -13,8 +14,7 @@ export default function Timekeeping() {
 
     const [logs, setLogs] = useState<any[]>([]);
     const [isLoadingLogs, setIsLoadingLogs] = useState(true);
-    const currentUserStr = localStorage.getItem('currentUser');
-    const currentUser = currentUserStr ? JSON.parse(currentUserStr) : {};
+    const { currentUser } = useAuth();
 
     useEffect(() => {
         const fetchLogs = async () => {
@@ -196,7 +196,7 @@ export default function Timekeeping() {
             const dayNames = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
 
             const newLog = {
-                userId: currentUser.id || 'unknown',
+                userId: currentUser?.id || 'unknown',
                 dateStr: `${checkOutTime.getDate()} ${monthNames[checkOutTime.getMonth()]}, ${checkOutTime.getFullYear()}`,
                 dayStr: dayNames[checkOutTime.getDay()],
                 in: checkInTime ? formatTimeAmpm(checkInTime) : '--:--',
