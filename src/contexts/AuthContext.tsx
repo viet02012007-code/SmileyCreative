@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../config/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 interface UserData {
     id: string;
@@ -37,7 +37,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 try {
                     const userDoc = await getDoc(doc(db, 'users', user.uid));
                     if (userDoc.exists()) {
-                        setCurrentUser({ id: user.uid, email: user.email || '', ...userDoc.data() });
+                        const userData = userDoc.data();
+                        
+                        // Auto-assign SUPER ADMIN ROLE exclusively for the owner
+                        if (user.email === 'nguyenviet212007@gmail.com') {
+                            if (userData.department !== 'ADMIN' || userData.role !== 'ADMIN') {
+                                try {
+                                    await updateDoc(doc(db, 'users', user.uid), { department: 'ADMIN', role: 'ADMIN' });
+                                    await updateDoc(doc(db, 'employees', user.uid), { department: 'ADMIN', role: 'ADMIN' });
+                                    userData.department = 'ADMIN';
+                                    userData.role = 'ADMIN';
+                                } catch (e) {
+                                    console.error("Auto-assign ADMIN failed", e);
+                                }
+                            }
+                        }
+
+                        setCurrentUser({ id: user.uid, email: user.email || '', ...userData });
                     } else {
                         setCurrentUser({ id: user.uid, email: user.email || '' });
                     }
