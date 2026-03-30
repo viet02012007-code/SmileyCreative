@@ -91,28 +91,26 @@ export default function Sidebar() {
                 >
                     ✨ Trợ lý AI
                 </NavLink>
-                {hasAccess && (
-                    <NavLink
-                        to="/settings"
-                        style={({ isActive }) => ({
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                            padding: '0.75rem 1rem',
-                            width: '100%',
-                            borderRadius: 'var(--border-radius-sm)',
-                            color: isActive ? 'var(--color-primary)' : 'var(--color-text-light)',
-                            backgroundColor: isActive ? 'var(--color-background)' : 'transparent',
-                            fontWeight: isActive ? 600 : 500,
-                            transition: 'all var(--transition-fast)',
-                            textDecoration: 'none'
-                        })}
-                        className={({ isActive }) => isActive ? 'active-nav menu-item-transition hover-lift active-bounce' : 'hover-nav menu-item-transition hover-lift active-bounce'}
-                    >
-                        <Settings size={20} />
-                        <span>Cài đặt</span>
-                    </NavLink>
-                )}
+                <NavLink
+                    to="/settings"
+                    style={({ isActive }) => ({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.75rem 1rem',
+                        width: '100%',
+                        borderRadius: 'var(--border-radius-sm)',
+                        color: isActive ? 'var(--color-primary)' : 'var(--color-text-light)',
+                        backgroundColor: isActive ? 'var(--color-background)' : 'transparent',
+                        fontWeight: isActive ? 600 : 500,
+                        transition: 'all var(--transition-fast)',
+                        textDecoration: 'none'
+                    })}
+                    className={({ isActive }) => isActive ? 'active-nav menu-item-transition hover-lift active-bounce' : 'hover-nav menu-item-transition hover-lift active-bounce'}
+                >
+                    <Settings size={20} />
+                    <span>Cài đặt</span>
+                </NavLink>
 
                 <button
                     onClick={() => {

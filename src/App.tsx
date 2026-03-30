@@ -36,9 +36,9 @@ function App() {
             {/* Các Routes yêu cầu quyền quản trị */}
             <Route element={<RoleProtectedRoute />}>
               <Route path="crm" element={<CRM />} />
-              <Route path="settings" element={<Settings />} />
             </Route>
 
+            <Route path="settings" element={<Settings />} />
             <Route path="knowledge" element={<KnowledgeBase />} />
             <Route path="chat" element={<Chat />} />
             <Route path="ai-assistant" element={<AIAssistant />} />
