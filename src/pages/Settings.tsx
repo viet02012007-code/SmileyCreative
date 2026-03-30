@@ -394,11 +394,35 @@ export default function Settings() {
                                             <div style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.25rem' }}>Tọa độ văn phòng Agency</div>
                                             <div style={{ fontSize: '0.85rem', color: 'var(--color-text-light)' }}>Vị trí trung tâm để tính khoảng cách (Vĩ độ, Kinh độ).</div>
                                         </div>
-                                        <input 
-                                            value={systemFormData.coords}
-                                            onChange={(e) => setSystemFormData({ ...systemFormData, coords: e.target.value })}
-                                            style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', outline: 'none', width: '200px', fontSize: '0.9rem' }}
-                                        />
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600 }}>Vĩ độ (Latitude)</span>
+                                                <input 
+                                                    type="text"
+                                                    value={systemFormData.coords.split(',')[0]?.trim() || ''}
+                                                    onChange={(e) => {
+                                                        const currentLng = systemFormData.coords.split(',')[1]?.trim() || '';
+                                                        setSystemFormData({ ...systemFormData, coords: `${e.target.value}, ${currentLng}` });
+                                                    }}
+                                                    placeholder="VD: 21.028511"
+                                                    style={{ padding: '0.5rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', outline: 'none', width: '120px', fontSize: '0.9rem', textAlign: 'center' }}
+                                                />
+                                            </div>
+                                            <span style={{ color: 'var(--color-text-light)', fontWeight: 'bold', marginTop: '1.25rem' }}>,</span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600 }}>Kinh độ (Longitude)</span>
+                                                <input 
+                                                    type="text"
+                                                    value={systemFormData.coords.split(',')[1]?.trim() || ''}
+                                                    onChange={(e) => {
+                                                        const currentLat = systemFormData.coords.split(',')[0]?.trim() || '';
+                                                        setSystemFormData({ ...systemFormData, coords: `${currentLat}, ${e.target.value}` });
+                                                    }}
+                                                    placeholder="VD: 105.804817"
+                                                    style={{ padding: '0.5rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', outline: 'none', width: '120px', fontSize: '0.9rem', textAlign: 'center' }}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
