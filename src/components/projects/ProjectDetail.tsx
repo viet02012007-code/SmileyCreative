@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, Plus, Filter, LayoutGrid, CheckSquare, Calendar, Folder, X, Edit, Trash2, ArrowLeft, File, Download, Link as LinkIcon, FolderPlus, ChevronRight, ExternalLink } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Search, Plus, Filter, LayoutGrid, CheckSquare, Calendar, Folder, X, Edit, Trash2, ArrowLeft, File, Link as LinkIcon, FolderPlus, ChevronRight, ExternalLink, Upload, FileText, MonitorPlay, Table } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db, storage } from '../../config/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, doc, deleteDoc, where } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import Avatar from '../Avatar';
 
+const GOOGLE_CLIENT_ID = '166885265432-erfbi898ho85hkkmi5jhkkgqlhmtdsrd.apps.googleusercontent.com';
+const GOOGLE_API_KEY = 'AIzaSyANKOxfZ4DRZy1cWE13EU2Vyla6mli2pG8';
 
 export default function ProjectDetail({ project, onBack }: { project: any, onBack: () => void }) {
     const [activeTab, setActiveTab] = useState('Phân công');
@@ -14,25 +16,17 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
     const [files, setFiles] = useState<any[]>([]);
     const [folders, setFolders] = useState<any[]>([]);
     const [currentFolder, setCurrentFolder] = useState<any>(null);
-    const [driveLink, setDriveLink] = useState(project?.driveLink || '');
-    const [isEditingDrive, setIsEditingDrive] = useState(false);
     const [showNewFolderModal, setShowNewFolderModal] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [isLoadingData, setIsLoadingData] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [previewFile, setPreviewFile] = useState<any>(null);
 
-    const driveEmbedUrl = useMemo(() => {
-        if (!driveLink) return null;
-        try {
-            let match = driveLink.match(/folders\/([a-zA-Z0-9-_]+)/);
-            if (!match) match = driveLink.match(/id=([a-zA-Z0-9-_]+)/);
-            if (match && match[1]) return `https://drive.google.com/embeddedfolderview?id=${match[1]}#list`;
-        } catch (e) {
-            console.error('URL parse error:', e);
-        }
-        return null;
-    }, [driveLink]);
+    // Hybrid Drive specific states
+    const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+    const [addLinkType, setAddLinkType] = useState<string | null>(null);
+    const [linkModalData, setLinkModalData] = useState({ name: '', url: '' });
+    const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
     useEffect(() => {
         const loadAllData = async () => {
@@ -77,7 +71,7 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                 const successfulFiles = [];
                 for (const f of uploadedFiles) {
                     const fileRef = ref(storage, `projects/${project.id}/${Date.now()}_${f.name}`);
-                    const uploadTask = await uploadBytesResumable(fileRef, f);
+                    const uploadTask = await uploadBytes(fileRef, f);
                     const downloadURL = await getDownloadURL(uploadTask.ref);
                     
                     const fileData = {
@@ -121,16 +115,6 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
         }
     };
 
-    const handleSaveDriveLink = async () => {
-        try {
-            await updateDoc(doc(db, 'projects', String(project.id)), { driveLink });
-            toast.success('Đã lưu liên kết Google Drive');
-            setIsEditingDrive(false);
-        } catch (err: any) {
-            toast.error('Lỗi lưu liên kết: ' + err.message);
-        }
-    };
-
     const handleCreateFolder = async () => {
         if (!newFolderName.trim()) return;
         toast.loading('Đang tạo thư mục...', { id: 'create-folder' });
@@ -159,6 +143,119 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                 toast.success('Đã xóa thư mục');
             } catch (err: any) {
                 toast.error('Lỗi: ' + err.message);
+            }
+        }
+    };
+
+    const createGoogleFileConfig: any = {
+        docs: { mime: 'application/vnd.google-apps.document', name: 'Google Tài liệu' },
+        sheets: { mime: 'application/vnd.google-apps.spreadsheet', name: 'Google Trang tính' },
+        slides: { mime: 'application/vnd.google-apps.presentation', name: 'Google Trình bày' }
+    };
+
+    const callCreateGoogleAPI = async (name: string, type: string, token: string) => {
+        toast.loading(`Đang tạo ${createGoogleFileConfig[type].name}...`, { id: 'create-gg' });
+        try {
+            const metadata: any = {
+                name: name,
+                mimeType: createGoogleFileConfig[type].mime
+            };
+            
+            let embedFolderId = null;
+            if (project.driveLink) {
+                let match = project.driveLink.match(/folders\/([a-zA-Z0-9-_]+)/);
+                if (!match) match = project.driveLink.match(/id=([a-zA-Z0-9-_]+)/);
+                if (match && match[1]) embedFolderId = match[1];
+            }
+            if (embedFolderId) metadata.parents = [embedFolderId];
+
+            const res = await fetch(`https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink&key=${GOOGLE_API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(metadata)
+            });
+            const data = await res.json();
+            
+            if (data.id && data.webViewLink) {
+                const fileData = {
+                    projectId: String(project.id),
+                    name: data.name,
+                    isLink: true,
+                    linkType: type,
+                    size: createGoogleFileConfig[type].name,
+                    type: 'url',
+                    date: new Date().toLocaleDateString('vi-VN'),
+                    data: data.webViewLink,
+                    folderId: currentFolder ? String(currentFolder.id) : null
+                };
+                const docRef = await addDoc(collection(db, 'project_files'), fileData);
+                setFiles([{ id: docRef.id, ...fileData }, ...files]);
+                toast.success('Đã tạo thành công!', { id: 'create-gg' });
+                setAddLinkType(null);
+                setLinkModalData({ name: '', url: '' });
+                setIsAddMenuOpen(false);
+            } else {
+                 throw new Error(data.error?.message || "Lỗi tạo file máy chủ Google");
+            }
+        } catch (err: any) {
+             toast.error(err.message, { id: 'create-gg' });
+        }
+    };
+
+    const handleSaveLink = async () => {
+        if (!linkModalData.name) {
+            toast.error('Vui lòng nhập tên tài liệu');
+            return;
+        }
+
+        if (addLinkType === 'link') {
+            if (!linkModalData.url) {
+                toast.error('Vui lòng nhập đường liên kết');
+                return;
+            }
+            toast.loading('Đang lưu liên kết...', { id: 'save-link' });
+            try {
+                const fileData = {
+                    projectId: String(project.id),
+                    name: linkModalData.name,
+                    isLink: true,
+                    linkType: addLinkType, // 'link'
+                    size: 'Liên kết ngoài',
+                    type: 'url',
+                    date: new Date().toLocaleDateString('vi-VN'),
+                    data: linkModalData.url,
+                    folderId: currentFolder ? String(currentFolder.id) : null
+                };
+                const docRef = await addDoc(collection(db, 'project_files'), fileData);
+                setFiles([{ id: docRef.id, ...fileData }, ...files]);
+                toast.success('Đã lưu liên kết thành công!', { id: 'save-link' });
+                setAddLinkType(null);
+                setLinkModalData({ name: '', url: '' });
+                setIsAddMenuOpen(false);
+            } catch (err: any) {
+                toast.error('Lỗi lưu liên kết: ' + err.message, { id: 'save-link' });
+            }
+        } else {
+            if (googleAccessToken) {
+                callCreateGoogleAPI(linkModalData.name, addLinkType as string, googleAccessToken);
+            } else {
+                try {
+                    const client = (window as any).google.accounts.oauth2.initTokenClient({
+                        client_id: GOOGLE_CLIENT_ID,
+                        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive',
+                        callback: (response: any) => {
+                            if (response.error !== undefined) throw response;
+                            setGoogleAccessToken(response.access_token);
+                            callCreateGoogleAPI(linkModalData.name, addLinkType as string, response.access_token);
+                        },
+                    });
+                    client.requestAccessToken();
+                } catch (err) {
+                    toast.error('Lỗi khởi tạo Google Login. Vui lòng tải lại trang.');
+                }
             }
         }
     };
@@ -456,14 +553,7 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                             <Filter size={16} /> Lọc nhân sự
                         </button>
                     )}
-                    {activeTab === 'Tài liệu' ? (
-                        <>
-                            <input type="file" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
-                            <button onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', borderRadius: '0.5rem', border: 'none', background: '#ff7d0d', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-                                Tải lên tài liệu
-                            </button>
-                        </>
-                    ) : (
+                    {activeTab === 'Tài liệu' ? null : (
                         <button onClick={() => openModal()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', borderRadius: '0.5rem', border: 'none', background: '#ff7d0d', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
                             <Plus size={18} /> Thêm công việc
                         </button>
@@ -635,98 +725,107 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                         </div>
                     </>
                 ) : (
-                    <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                        {/* Google Drive Section */}
-                        <div style={{ backgroundColor: 'white', borderRadius: '1rem', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
-                            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#E8F0FE', color: '#1A73E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#FFC107" d="M17 14.5L11 24H3L9 14.5h8z" /><path fill="#1976D2" d="M17 14.5H1l6-10h16l-6 10z" /><path fill="#4CAF50" d="M23 4.5l-6 10H1l6-10h16z" /></svg>
-                                    </div>
-                                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--color-text)' }}>Không gian Google Drive</h3>
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    {driveLink && !isEditingDrive && <a href={driveLink} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: '#1A73E8', textDecoration: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: '#E8F0FE' }}><ExternalLink size={14}/> Mở Drive</a>}
-                                    <button onClick={() => setIsEditingDrive(!isEditingDrive)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)', border: '1px solid var(--color-border)', backgroundColor: 'transparent', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer' }}><LinkIcon size={14}/> {driveLink ? 'Sửa Liên Kết' : 'Thêm Liên Kết'}</button>
-                                </div>
-                            </div>
-                            
-                            {isEditingDrive && (
-                                <div style={{ padding: '1.5rem', backgroundColor: '#F9FAFB', borderBottom: '1px solid var(--color-border)' }}>
-                                    <div style={{ display: 'flex', gap: '1rem' }}>
-                                        <input type="text" value={driveLink} onChange={(e) => setDriveLink(e.target.value)} placeholder="Nhập đường link thư mục Google Drive của không gian dự án..." style={{ flex: 1, padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', fontSize: '0.9rem', outline: 'none' }} />
-                                        <button onClick={handleSaveDriveLink} style={{ padding: '0 1.5rem', backgroundColor: '#1A73E8', color: 'white', borderRadius: '0.5rem', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Lưu cấu hình</button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {driveEmbedUrl && !isEditingDrive && (
-                                <div style={{ width: '100%', height: '400px', backgroundColor: '#f1f3f4' }}>
-                                    <iframe src={driveEmbedUrl} width="100%" height="100%" style={{ border: 'none' }} allow="autoplay"></iframe>
-                                </div>
-                            )}
-                            {!driveEmbedUrl && driveLink && !isEditingDrive && (
-                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.95rem' }}>Link Drive hiện tại không thể nhúng (Do định dạng hoặc quyền riêng tư). Vui lòng nhấn "Mở Drive" để xem trên trình duyệt mới.</div>
-                            )}
-                            {!driveLink && !isEditingDrive && (
-                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.95rem' }}>Chưa có liên kết Drive. Hãy cấu hình để nhúng trực tiếp khu vực làm việc Google.</div>
-                            )}
-                        </div>
-
-                        {/* App Virtual Drive */}
-                        <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', fontWeight: 700, color: 'var(--color-text)' }}>
-                                    <button onClick={() => setCurrentFolder(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: currentFolder ? 'var(--color-text-light)' : 'var(--color-primary)', fontWeight: currentFolder ? 600 : 800 }}>Tài liệu hệ thống</button>
-                                    {currentFolder && (
-                                        <>
-                                            <ChevronRight size={16} color="var(--color-text-light)" />
-                                            <span style={{ color: 'var(--color-primary)', fontWeight: 800 }}>{currentFolder.name}</span>
-                                        </>
-                                    )}
-                                </div>
-                                <button onClick={() => setShowNewFolderModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', backgroundColor: 'white', color: 'var(--color-text)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
-                                    <FolderPlus size={16} /> Tạo thư mục
-                                </button>
+                    <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem', backgroundColor: '#F9FAFB' }} onClick={() => setIsAddMenuOpen(false)}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-text)' }}>
+                                <button onClick={() => setCurrentFolder(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: currentFolder ? 'var(--color-text-light)' : 'var(--color-primary)', fontWeight: currentFolder ? 500 : 800 }}>Tài liệu dự án</button>
+                                {currentFolder && (
+                                    <>
+                                        <ChevronRight size={18} color="var(--color-text-light)" />
+                                        <span style={{ color: 'var(--color-primary)', fontWeight: 800 }}>{currentFolder.name}</span>
+                                    </>
+                                )}
                             </div>
 
-                            {isLoadingData ? (
-                                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)' }}>Đang tải dữ liệu tệp tin...</div>
-                            ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
-                                    {currentFolders.map(folder => (
-                                        <div key={folder.id} onClick={() => setCurrentFolder(folder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', borderRadius: '0.75rem', padding: '1rem', border: '1px solid var(--color-border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                <div style={{ padding: '0.6rem', backgroundColor: '#FFF7ED', borderRadius: '0.5rem', color: '#ff7d0d', display: 'flex' }}><Folder size={20} fill="#ff7d0d" strokeWidth={1}/></div>
-                                                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text)' }}>{folder.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ position: 'relative', width: '250px' }}>
+                                    <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-light)' }} />
+                                    <input type="text" placeholder="Tìm tài liệu..." style={{ width: '100%', padding: '0.65rem 1rem 0.65rem 2.5rem', borderRadius: '2rem', border: '1px solid var(--color-border)', backgroundColor: 'white', outline: 'none', fontSize: '0.9rem' }} />
+                                </div>
+                                
+                                <div style={{ position: 'relative' }}>
+                                    <input type="file" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
+                                    <button onClick={(e) => { e.stopPropagation(); setIsAddMenuOpen(!isAddMenuOpen); }} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.25rem', borderRadius: '2rem', border: 'none', background: '#0D9488', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(13, 148, 136, 0.2)' }}>
+                                        <Plus size={18} /> Thêm mới
+                                    </button>
+                                    
+                                    {isAddMenuOpen && (
+                                        <div style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', right: 0, width: '260px', backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)', border: '1px solid var(--color-border)', zIndex: 100, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                                            <div style={{ padding: '0.5rem 0' }}>
+                                                <button onClick={() => { fileInputRef.current?.click(); setIsAddMenuOpen(false); }} className="hover-bg-gray" style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text)', fontSize: '0.9rem', fontWeight: 500 }}>
+                                                    <Upload size={16} color="var(--color-text-light)" /> Tải lên tài liệu
+                                                </button>
+                                                <button onClick={() => { setShowNewFolderModal(true); setIsAddMenuOpen(false); }} className="hover-bg-gray" style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text)', fontSize: '0.9rem', fontWeight: 500 }}>
+                                                    <FolderPlus size={16} color="var(--color-text-light)" /> Thêm thư mục
+                                                </button>
+                                                
+                                                <div style={{ height: '1px', backgroundColor: 'var(--color-border)', margin: '0.25rem 0' }}></div>
+                                                
+                                                <button onClick={() => setAddLinkType('docs')} className="hover-bg-gray" style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text)', fontSize: '0.9rem', fontWeight: 500 }}>
+                                                    <div style={{ backgroundColor: '#E8F0FE', padding: '0.3rem', borderRadius: '6px' }}><FileText size={16} color="#1A73E8" /></div> Thêm Google Tài liệu
+                                                </button>
+                                                <button onClick={() => setAddLinkType('sheets')} className="hover-bg-gray" style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text)', fontSize: '0.9rem', fontWeight: 500 }}>
+                                                    <div style={{ backgroundColor: '#E6F4EA', padding: '0.3rem', borderRadius: '6px' }}><Table size={16} color="#1E8E3E" /></div> Thêm Google Trang tính
+                                                </button>
+                                                <button onClick={() => setAddLinkType('slides')} className="hover-bg-gray" style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text)', fontSize: '0.9rem', fontWeight: 500 }}>
+                                                    <div style={{ backgroundColor: '#FFF3E0', padding: '0.3rem', borderRadius: '6px' }}><MonitorPlay size={16} color="#F9AB00" /></div> Thêm Google Trình bày
+                                                </button>
+                                                <button onClick={() => setAddLinkType('link')} className="hover-bg-gray" style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text)', fontSize: '0.9rem', fontWeight: 500 }}>
+                                                    <div style={{ backgroundColor: '#F3F4F6', padding: '0.3rem', borderRadius: '6px' }}><LinkIcon size={16} color="#4B5563" /></div> Thêm từ liên kết có sẵn
+                                                </button>
                                             </div>
-                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '0.5rem', opacity: 0.5 }} title="Xóa thư mục"><Trash2 size={16}/></button>
                                         </div>
-                                    ))}
-
-                                    {currentFiles.map((file: any) => (
-                                        <div key={file.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', borderRadius: '0.75rem', padding: '1rem', border: '1px solid var(--color-border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: file.data ? 'pointer' : 'default' }} onClick={() => { if(file.data && file.type?.startsWith('image/')) setPreviewFile(file); }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
-                                                {file.data && file.type?.startsWith('image/') ? <img src={file.data} alt="Preview" style={{ width: '48px', height: '48px', borderRadius: '0.5rem', objectFit: 'cover' }} /> : <div style={{ backgroundColor: '#F3F4F6', padding: '0.75rem', borderRadius: '0.5rem', color: '#ff7d0d', display: 'flex' }}><File size={24}/></div>}
-                                                <div style={{ overflow: 'hidden' }}><div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.name}</div><div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', marginTop: '0.2rem' }}>{file.size}</div></div>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                {file.data && (
-                                                    <a href={file.data} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--color-primary)', display: 'flex', alignItems: 'center', padding: '0.5rem', textDecoration: 'none' }} title="Tải xuống / Xem">
-                                                        <Download size={16} />
-                                                    </a>
-                                                )}
-                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.id, file.storagePath); }} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '0.5rem' }} title="Xóa tệp"><Trash2 size={16} /></button>
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    {currentFolders.length === 0 && currentFiles.length === 0 && (
-                                        <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)', backgroundColor: 'white', borderRadius: '0.75rem', border: '1px dashed var(--color-border)' }}>Thư mục trống. Bạn có thể tải lên hoặc tạo thư mục mới.</div>
                                     )}
                                 </div>
-                            )}
+                            </div>
                         </div>
+
+                        {isLoadingData ? (
+                            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)' }}>Đang tải dữ liệu tệp tin...</div>
+                        ) : currentFolders.length === 0 && currentFiles.length === 0 ? (
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem' }}>
+                                <img src="https://cdni.iconscout.com/illustration/premium/thumb/folder-is-empty-illustration-download-in-svg-png-gif-file-formats--no-data-file-not-found-business-pack-illustrations-5282572.png" alt="Empty" style={{ width: '220px', marginBottom: '1rem', opacity: 0.8 }} />
+                                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-text)', marginBottom: '0.5rem' }}>Không có tài liệu nào</div>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-light)' }}>Nhấn vào "+ Thêm mới" để bắt đầu lưu trữ</div>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                                {currentFolders.map(folder => (
+                                    <div key={folder.id} onClick={() => setCurrentFolder(folder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', borderRadius: '0.75rem', padding: '1rem', border: '1px solid var(--color-border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer' }} className="hover-border-primary">
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                            <div style={{ padding: '0.6rem', backgroundColor: '#FFF7ED', borderRadius: '0.5rem', color: '#ff7d0d', display: 'flex' }}><Folder size={20} fill="#ff7d0d" strokeWidth={1}/></div>
+                                            <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text)' }}>{folder.name}</div>
+                                        </div>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '0.5rem', opacity: 0.5 }} className="hover-opacity-100" title="Xóa thư mục"><Trash2 size={16}/></button>
+                                    </div>
+                                ))}
+
+                                {currentFiles.map((file: any) => (
+                                    <div key={file.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', borderRadius: '0.75rem', padding: '1rem', border: '1px solid var(--color-border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer' }} onClick={() => { setPreviewFile(file); }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
+                                            {file.isLink ? (
+                                                <div style={{ backgroundColor: file.linkType === 'docs' ? '#E8F0FE' : file.linkType === 'sheets' ? '#E6F4EA' : file.linkType === 'slides' ? '#FFF3E0' : '#F3F4F6', padding: '0.75rem', borderRadius: '0.5rem', display: 'flex' }}>
+                                                    {file.linkType === 'docs' ? <FileText size={20} color="#1A73E8"/> : file.linkType === 'sheets' ? <Table size={20} color="#1E8E3E"/> : file.linkType === 'slides' ? <MonitorPlay size={20} color="#F9AB00"/> : <LinkIcon size={20} color="#4B5563"/>}
+                                                </div>
+                                            ) : file.data && file.type?.startsWith('image/') ? (
+                                                <img src={file.data} alt="Preview" style={{ width: '48px', height: '48px', borderRadius: '0.5rem', objectFit: 'cover' }} />
+                                            ) : (
+                                                <div style={{ backgroundColor: '#F3F4F6', padding: '0.75rem', borderRadius: '0.5rem', color: '#ff7d0d', display: 'flex' }}><File size={24}/></div>
+                                            )}
+                                            <div style={{ overflow: 'hidden' }}><div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.name}</div><div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', marginTop: '0.2rem' }}>{file.size}</div></div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            {file.data && (
+                                                <a href={file.data} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--color-primary)', display: 'flex', alignItems: 'center', padding: '0.5rem', textDecoration: 'none' }} title="Mở">
+                                                    <ExternalLink size={16} />
+                                                </a>
+                                            )}
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.id, file.storagePath); }} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '0.5rem' }} title="Xóa"><Trash2 size={16} /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -779,15 +878,70 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                 </div>
             )}
             
+            {/* Modal - Add Link */}
+            {addLinkType && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setAddLinkType(null)}>
+                    <div style={{ width: '100%', maxWidth: '400px', backgroundColor: 'white', borderRadius: '1rem', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                {addLinkType === 'docs' ? <FileText size={20} color="#1A73E8"/> : addLinkType === 'sheets' ? <Table size={20} color="#1E8E3E"/> : addLinkType === 'slides' ? <MonitorPlay size={20} color="#F9AB00"/> : <LinkIcon size={20} color="#4B5563"/>}
+                                <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Thêm tài liệu liên kết</h3>
+                            </div>
+                            <button onClick={() => setAddLinkType(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-light)' }}><X size={20} /></button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Tên tài liệu mới</div>
+                                <input type="text" value={linkModalData.name} onChange={e => setLinkModalData({...linkModalData, name: e.target.value})} autoFocus style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', outline: 'none' }} placeholder="Nhập tên tài liệu..." />
+                            </div>
+                            {addLinkType === 'link' && (
+                                <div>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Đường dẫn (URL)</div>
+                                    <input type="url" value={linkModalData.url} onChange={e => setLinkModalData({...linkModalData, url: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', outline: 'none' }} placeholder="https://..." />
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                            <button onClick={() => setAddLinkType(null)} style={{ flex: 1, padding: '0.75rem', backgroundColor: '#F3F4F6', color: 'var(--color-text)', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>Hủy</button>
+                            <button onClick={handleSaveLink} style={{ flex: 1, padding: '0.75rem', backgroundColor: '#0D9488', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>
+                                {addLinkType === 'link' ? 'Lưu liên kết' : 'Tạo mới'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
             {/* Preview Document */}
             {previewFile && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setPreviewFile(null)}>
-                    <div style={{ position: 'relative', width: '90%', maxWidth: '900px', maxHeight: '90vh', backgroundColor: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ position: 'relative', width: previewFile.isLink ? '95%' : '90%', height: previewFile.isLink ? '95%' : 'auto', maxWidth: previewFile.isLink ? 'none' : '900px', maxHeight: '95vh', backgroundColor: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }} onClick={e => e.stopPropagation()}>
+                        
                         <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '1rem 1.5rem', borderRadius: '0.75rem' }}>
-                            <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>{previewFile.name}</div>
-                            <button onClick={() => setPreviewFile(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-light)', padding: '0.2rem' }}><X size={20} /></button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                {previewFile.isLink && (
+                                    previewFile.linkType === 'docs' ? <FileText size={20} color="#1A73E8"/> : previewFile.linkType === 'sheets' ? <Table size={20} color="#1E8E3E"/> : previewFile.linkType === 'slides' ? <MonitorPlay size={20} color="#F9AB00"/> : <LinkIcon size={20} color="#4B5563"/>
+                                )}
+                                <div style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--color-text)' }}>{previewFile.name}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                {previewFile.isLink && (
+                                    <a href={previewFile.data} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.8rem', borderRadius: '0.5rem', backgroundColor: '#F3F4F6', color: 'var(--color-text)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600 }}>
+                                        <ExternalLink size={16} /> Mở Tab Mới
+                                    </a>
+                                )}
+                                <button onClick={() => setPreviewFile(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-light)', padding: '0.2rem' }}><X size={24} /></button>
+                            </div>
                         </div>
-                        <img src={previewFile.data} alt={previewFile.name} style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 80px)', objectFit: 'contain', borderRadius: '0.5rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} />
+
+                        {previewFile.isLink ? (
+                            <div style={{ width: '100%', flex: 1, backgroundColor: 'white', borderRadius: '0.75rem', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+                                <iframe src={previewFile.data} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay"></iframe>
+                            </div>
+                        ) : previewFile.data && previewFile.type?.startsWith('image/') ? (
+                            <img src={previewFile.data} alt={previewFile.name} style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 80px)', objectFit: 'contain', borderRadius: '0.5rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} />
+                        ) : (
+                            <div style={{ padding: '3rem', backgroundColor: 'white', borderRadius: '0.5rem', textAlign: 'center', width: '100%' }}>Không có bản xem trước cho định dạng này.</div>
+                        )}
                     </div>
                 </div>
             )}

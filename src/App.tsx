@@ -12,6 +12,7 @@ import AIAssistant from './pages/AIAssistant';
 import Settings from './pages/Settings';
 import Auth from './pages/Auth';
 import AttendanceTracking from './pages/AttendanceTracking';
+import Dashboard from './pages/Dashboard';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { AnimatePresence } from 'framer-motion';
@@ -29,7 +30,8 @@ function App() {
         {/* Route bảo vệ yêu cầu đăng nhập */}
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="/timekeeping" replace />} />
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
             <Route path="timekeeping" element={<Timekeeping />} />
             <Route path="employees" element={<Employees />} />
             <Route path="projects" element={<Projects />} />

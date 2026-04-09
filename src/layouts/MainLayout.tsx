@@ -4,6 +4,8 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import YouTubePlayer from '../components/YouTubePlayer';
 import CreateTaskModal from '../components/CreateTaskModal';
+import DailyTaskPrompt from '../components/DailyTaskPrompt';
+import CaroGame from '../components/CaroGame';
 import { Plus } from 'lucide-react';
 
 export default function MainLayout() {
@@ -35,6 +37,7 @@ export default function MainLayout() {
                 <Outlet />
             </main>
             <YouTubePlayer />
+            <CaroGame />
 
             {/* Floating Create Task Button */}
             <button
@@ -69,6 +72,8 @@ export default function MainLayout() {
                 isOpen={isCreateTaskOpen}
                 onClose={() => setIsCreateTaskOpen(false)}
             />
+
+            <DailyTaskPrompt />
         </div>
     );
 }

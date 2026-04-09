@@ -11,10 +11,28 @@ export default function Timekeeping() {
     const [isCheckedIn, setIsCheckedIn] = useState(false);
     const [checkInTime, setCheckInTime] = useState<Date | null>(null);
     const [elapsedTime, setElapsedTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
+    const { currentUser } = useAuth();
+
+    // Restore state from localStorage on mount
+    useEffect(() => {
+        if (!currentUser?.id) return;
+        const savedCheckIn = localStorage.getItem(`timekeeping_${currentUser.id}`);
+        if (savedCheckIn) {
+            const savedDate = new Date(savedCheckIn);
+            // Optional: reset if it's a completely different day (forgot to check out yesterday)
+            const today = new Date();
+            if (savedDate.getDate() === today.getDate() && savedDate.getMonth() === today.getMonth()) {
+                setCheckInTime(savedDate);
+                setIsCheckedIn(true);
+            } else {
+                // different day, automatically clear the old checkin
+                localStorage.removeItem(`timekeeping_${currentUser.id}`);
+            }
+        }
+    }, [currentUser?.id]);
 
     const [logs, setLogs] = useState<any[]>([]);
     const [isLoadingLogs, setIsLoadingLogs] = useState(true);
-    const { currentUser } = useAuth();
 
     useEffect(() => {
         const fetchLogs = async () => {
@@ -120,9 +138,13 @@ export default function Timekeeping() {
     };
 
     const performCheckIn = () => {
-        setCheckInTime(new Date());
+        const now = new Date();
+        setCheckInTime(now);
         setIsCheckedIn(true);
         setElapsedTime({ hours: 0, minutes: 0, seconds: 0 });
+        if (currentUser?.id) {
+            localStorage.setItem(`timekeeping_${currentUser.id}`, now.toISOString());
+        }
     };
 
     const handleCheckInOut = async (action: 'in' | 'out') => {
@@ -221,6 +243,9 @@ export default function Timekeeping() {
             setIsCheckedIn(false);
             setCheckInTime(null);
             setElapsedTime({ hours: 0, minutes: 0, seconds: 0 });
+            if (currentUser?.id) {
+                localStorage.removeItem(`timekeeping_${currentUser.id}`);
+            }
         }
     };
 

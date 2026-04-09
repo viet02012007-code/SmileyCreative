@@ -1,14 +1,39 @@
-import React, { useState } from 'react';
-import { Music, X, Minimize2, Maximize2, Play } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Music, X, Minimize2, Maximize2, Play, Radio } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { db } from '../config/firebase';
+import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function YouTubePlayer() {
     const [isOpen, setIsOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const [videoUrl, setVideoUrl] = useState('');
     const [videoId, setVideoId] = useState<string | null>(null);
-
     const [videoTitle, setVideoTitle] = useState<string>('');
+    const [playedBy, setPlayedBy] = useState<string>('');
+    const { currentUser } = useAuth();
+
+    // Listen to Global Radio
+    useEffect(() => {
+        const unsub = onSnapshot(doc(db, 'system_settings', 'global_music'), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.videoId && data.videoId !== videoId) {
+                    setVideoId(data.videoId);
+                    setVideoTitle(data.title || 'Nhạc nền chung');
+                    setPlayedBy(data.playedBy || 'Hệ thống');
+                    setIsOpen(true);
+                    setIsMinimized(true); // Don't block screen, just play music
+                } else if (!data.videoId && videoId) {
+                    // Someone stopped the global radio completely
+                    setVideoId(null);
+                    setIsOpen(false);
+                }
+            }
+        });
+        return () => unsub();
+    }, [videoId]);
 
     // Extract Video ID from various YouTube URL formats
     const extractVideoId = (url: string) => {
@@ -22,26 +47,38 @@ export default function YouTubePlayer() {
             const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${id}`);
             const data = await response.json();
             if (data.title) {
-                setVideoTitle(data.title);
-            } else {
-                setVideoTitle('Nhạc nền');
+                return data.title;
             }
+            return 'Nhạc nền';
         } catch (error) {
             console.error("Error fetching video title:", error);
-            setVideoTitle('Nhạc nền');
+            return 'Nhạc nền';
         }
     };
 
-    const handlePlay = (e: React.FormEvent) => {
+    const handlePlay = async (e: React.FormEvent) => {
         e.preventDefault();
         const id = extractVideoId(videoUrl);
         const finalId = id || (videoUrl.length === 11 ? videoUrl : null);
 
         if (finalId) {
-            setVideoId(finalId);
-            setIsMinimized(false);
-            setVideoUrl(''); // clear input after playing
-            fetchVideoTitle(finalId);
+            // Cập nhật lên Global Radio
+            setVideoUrl(''); // clear input
+            const title = await fetchVideoTitle(finalId);
+            
+            try {
+                await setDoc(doc(db, 'system_settings', 'global_music'), {
+                    videoId: finalId,
+                    title: title,
+                    playedBy: currentUser?.name || currentUser?.email || 'Một thành viên ẩn danh',
+                    updatedAt: serverTimestamp()
+                });
+                toast.success('Đã cập nhật bài hát cho toàn công ty!');
+                setIsMinimized(false);
+            } catch (err) {
+                console.error(err);
+                toast.error('Lỗi khi phát nhạc chung!');
+            }
         } else {
             toast.error('Vui lòng nhập link hoặc ID YouTube hợp lệ!');
         }
@@ -96,8 +133,8 @@ export default function YouTubePlayer() {
                 background: 'rgba(0,0,0,0.05)'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-                    <Music size={18} className="text-primary" />
-                    <span>Nhạc Nền</span>
+                    <Radio size={18} className="text-primary" />
+                    <span>Đài Phát Thanh</span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                     {videoId && (
@@ -165,9 +202,14 @@ export default function YouTubePlayer() {
             {isMinimized && videoId && (
                 <div style={{ padding: '0.75rem 1rem', fontSize: '0.875rem', color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-success)', animation: 'pulse 2s infinite', flexShrink: 0 }}></div>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {videoTitle ? videoTitle : 'Đang phát nhạc...'}
-                    </span>
+                    <div style={{ overflow: 'hidden' }}>
+                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, color: 'var(--color-text)' }}>
+                            {videoTitle ? videoTitle : 'Đang phát nhạc...'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                            DJ: <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{playedBy}</span>
+                        </div>
+                    </div>
                 </div>
             )}
 

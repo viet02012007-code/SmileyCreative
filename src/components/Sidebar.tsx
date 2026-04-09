@@ -1,11 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
     Users, Briefcase, CalendarClock, MessageSquare,
-    BookOpen, LayoutDashboard, Settings, LogOut, ClipboardList
+    BookOpen, LayoutDashboard, Settings, LogOut, ClipboardList, Home
 } from 'lucide-react';
 import { useAdminAccess } from '../hooks/useAdminAccess';
 
 const MENU_ITEMS = [
+    { icon: Home, label: 'Tổng quan', path: '/dashboard' },
     { icon: CalendarClock, label: 'Chấm công', path: '/timekeeping' },
     { icon: ClipboardList, label: 'Giám sát BC', path: '/attendance', adminOnly: true },
     { icon: Users, label: 'Nhân sự', path: '/employees' },

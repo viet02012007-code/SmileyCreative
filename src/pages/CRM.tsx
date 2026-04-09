@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Phone, Mail, MapPin, Star, User, X, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, Filter, Phone, Mail, MapPin, Star, User, X, Edit, Trash2, Calendar, FileText, Download, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { db } from '../config/firebase';
+import { db, storage } from '../config/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import PageTransition from '../components/PageTransition';
 
 const COLORS = ['var(--color-primary)', 'var(--color-success)', 'var(--color-warning)', 'var(--color-secondary)', '#8b5cf6', '#ec4899', '#14b8a6'];
@@ -30,10 +31,13 @@ export default function CRM() {
     }, []);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [viewingClient, setViewingClient] = useState<any>(null);
     const [editingClient, setEditingClient] = useState<any>(null);
     const [formData, setFormData] = useState({
-        name: '', contact: '', role: '', email: '', phone: '', address: '', status: 'Khách hàng Mới'
+        name: '', contact: '', role: '', email: '', phone: '', address: '', status: 'Khách hàng Mới', startDate: '', endDate: '', contractFileUrl: ''
     });
+    const [contractFile, setContractFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     const handleSave = async () => {
         if (!formData.name || !formData.contact) {
@@ -42,16 +46,29 @@ export default function CRM() {
         }
         
         toast.loading('Đang lưu thông tin khách hàng...', { id: 'save-crm' });
+        setIsUploading(true);
         
         try {
+            let finalFileUrl = formData.contractFileUrl;
+
+            // Nếu user có đính kèm file thì up lên Firebase Storage trước
+            if (contractFile) {
+                toast.loading('Đang tải tệp đính kèm lên đám mây...', { id: 'save-crm' });
+                const fileRef = ref(storage, `crm_contracts/${new Date().getTime()}_${contractFile.name}`);
+                await uploadBytes(fileRef, contractFile);
+                finalFileUrl = await getDownloadURL(fileRef);
+            }
+
+            const dataToSave = { ...formData, contractFileUrl: finalFileUrl };
+
             if (editingClient) {
                 const clientRef = doc(db, 'crm_clients', editingClient.id);
-                await updateDoc(clientRef, formData);
-                setClients(clients.map((c: any) => c.id === editingClient.id ? { ...editingClient, ...formData } : c));
+                await updateDoc(clientRef, dataToSave);
+                setClients(clients.map((c: any) => c.id === editingClient.id ? { ...editingClient, ...dataToSave } : c));
                 toast.success('Cập nhật thành công!', { id: 'save-crm' });
             } else {
                 const newClientData = {
-                    ...formData,
+                    ...dataToSave,
                     bg: COLORS[Math.floor(Math.random() * COLORS.length)],
                     createdAt: new Date().toISOString()
                 };
@@ -63,6 +80,8 @@ export default function CRM() {
         } catch (error: any) {
             console.error(error);
             toast.error("Lỗi khi lưu khách hàng: " + error.message, { id: 'save-crm' });
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -85,10 +104,13 @@ export default function CRM() {
         if (client) {
             setFormData({
                 name: client.name, contact: client.contact, role: client.role,
-                email: client.email, phone: client.phone, address: client.address, status: client.status
+                email: client.email, phone: client.phone, address: client.address, status: client.status,
+                startDate: client.startDate || '', endDate: client.endDate || '', contractFileUrl: client.contractFileUrl || ''
             });
+            setContractFile(null); // Reset when edit
         } else {
-            setFormData({ name: '', contact: '', role: '', email: '', phone: '', address: '', status: 'Khách hàng Mới' });
+            setFormData({ name: '', contact: '', role: '', email: '', phone: '', address: '', status: 'Khách hàng Mới', startDate: '', endDate: '', contractFileUrl: '' });
+            setContractFile(null);
         }
         setIsModalOpen(true);
     };
@@ -103,6 +125,17 @@ export default function CRM() {
         c.contact.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const checkExpiring = (endDateStr: string) => {
+        if (!endDateStr) return false;
+        const end = new Date(endDateStr);
+        const now = new Date();
+        const diffTime = end.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
+    };
+
+    const expiringClients = clients.filter(c => checkExpiring(c.endDate));
 
     return (
         <PageTransition style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%' }}>
@@ -122,6 +155,22 @@ export default function CRM() {
                     </button>
                 </div>
             </div>
+
+            {expiringClients.length > 0 && (
+                <div style={{ 
+                    padding: '1rem', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', 
+                    borderRadius: 'var(--border-radius-sm)', color: '#b91c1c', display: 'flex', 
+                    alignItems: 'flex-start', gap: '0.75rem', animation: 'fadeIn 0.5s ease-out'
+                }}>
+                    <AlertTriangle size={24} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                        <h4 style={{ margin: '0 0 0.25rem 0', fontWeight: 700, fontSize: '1.05rem' }}>Khách hàng sắp hết hạn hợp đồng!</h4>
+                        <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                            Có <b>{expiringClients.length}</b> khách hàng sẽ hết hạn hợp đồng trong 7 ngày tới. Hãy liên hệ với họ để gia hạn.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Toolbar */}
             <div className="glass-panel" style={{ padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -181,9 +230,16 @@ export default function CRM() {
                                             <Star size={18} />
                                         </button>
                                     </div>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.6rem', borderRadius: '1rem', backgroundColor: `${client.bg}15`, color: client.bg }}>
-                                        {client.status}
-                                    </span>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.6rem', borderRadius: '1rem', backgroundColor: `${client.bg}15`, color: client.bg }}>
+                                            {client.status}
+                                        </span>
+                                        {checkExpiring(client.endDate) && (
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.6rem', borderRadius: '1rem', backgroundColor: '#fef2f2', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                                <AlertTriangle size={12} /> Sắp hết hạn
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -205,6 +261,12 @@ export default function CRM() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <MapPin size={14} /> {client.address}
                                 </div>
+                                {(client.startDate || client.endDate) && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: checkExpiring(client.endDate) ? '#dc2626' : 'var(--color-primary)', fontWeight: checkExpiring(client.endDate) ? 700 : 500 }}>
+                                        <Calendar size={14} /> 
+                                        {client.startDate ? new Date(client.startDate).toLocaleDateString('vi-VN') : '...'} - {client.endDate ? new Date(client.endDate).toLocaleDateString('vi-VN') : '...'}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -213,8 +275,8 @@ export default function CRM() {
                             <button className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem' }} onClick={() => openModal(client)}>
                                 <Edit size={16} /> Sửa
                             </button>
-                            <button className="btn btn-primary" style={{ flex: 1, padding: '0.5rem' }}>
-                                Tạo báo giá
+                            <button className="btn btn-primary" style={{ flex: 1, padding: '0.5rem' }} onClick={() => setViewingClient(client)}>
+                                Xem chi tiết
                             </button>
                             <button className="btn btn-secondary" style={{ padding: '0.5rem', color: '#ef4444', borderColor: '#ef444415', background: '#ef444405' }} onClick={() => handleDelete(client.id)}>
                                 <Trash2 size={16} />
@@ -280,6 +342,17 @@ export default function CRM() {
                                 <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-background)', color: 'var(--color-text)', outline: 'none' }} />
                             </div>
 
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.4rem', display: 'block' }}>Ngày bắt đầu hợp đồng</label>
+                                    <input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-background)', color: 'var(--color-text)', outline: 'none' }} />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.4rem', display: 'block' }}>Ngày kết thúc hợp đồng</label>
+                                    <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-background)', color: 'var(--color-text)', outline: 'none' }} />
+                                </div>
+                            </div>
+
                             <div>
                                 <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.4rem', display: 'block' }}>Trạng thái</label>
                                 <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-background)', color: 'var(--color-text)', outline: 'none' }}>
@@ -290,13 +363,134 @@ export default function CRM() {
                                     <option value="Mất liên lạc">Mất liên lạc</option>
                                 </select>
                             </div>
+
+                            <div>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <FileText size={16} /> Phiếu báo cáo/Hợp đồng đính kèm
+                                </label>
+                                {formData.contractFileUrl && !contractFile && (
+                                    <div style={{ padding: '0.5rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#059669', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>✓ Đã đính kèm tệp hợp đồng cũ</span>
+                                        <button onClick={() => setFormData({...formData, contractFileUrl: ''})} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={14}/></button>
+                                    </div>
+                                )}
+                                <input 
+                                    type="file" 
+                                    onChange={e => {
+                                        if (e.target.files && e.target.files[0]) {
+                                            setContractFile(e.target.files[0]);
+                                        }
+                                    }} 
+                                    style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px dashed var(--color-border)', background: 'var(--color-background)', color: 'var(--color-text)', outline: 'none' }} 
+                                />
+                                {contractFile && (
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--color-primary)', marginTop: '0.2rem' }}>
+                                        Tệp chờ tải lên: {contractFile.name} (Tải lên cần 3-5 giây)
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                            <button className="btn btn-primary" style={{ flex: 1, padding: '0.75rem' }} onClick={handleSave}>Lưu thông tin</button>
+                            <button className="btn btn-primary" style={{ flex: 1, padding: '0.75rem' }} onClick={handleSave} disabled={isUploading}>
+                                {isUploading ? 'Đang lưu Cloud...' : 'Lưu thông tin'}
+                            </button>
                             <button className="btn btn-secondary" style={{ flex: 1, padding: '0.75rem' }} onClick={closeModal}>Hủy</button>
                         </div>
 
+                    </div>
+                </div>
+            )}
+
+            {/* View Details Modal */}
+            {viewingClient && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+                    zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: 'fadeIn 0.2s ease-out'
+                }} onClick={() => setViewingClient(null)}>
+                    <div className="glass-panel" style={{
+                        width: '100%', maxWidth: '500px', backgroundColor: 'var(--color-surface)',
+                        padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                        display: 'flex', flexDirection: 'column', gap: '1.5rem',
+                        maxHeight: '90vh', overflowY: 'auto'
+                    }} onClick={e => e.stopPropagation()}>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{
+                                    width: '56px', height: '56px', borderRadius: '12px',
+                                    background: `linear-gradient(135deg, ${viewingClient.bg}, ${viewingClient.bg}cc)`,
+                                    color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '1.5rem', fontWeight: 'bold'
+                                }}>
+                                    {viewingClient.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-text)', marginBottom: '0.2rem' }}>{viewingClient.name}</h3>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 600, padding: '0.25rem 0.75rem', borderRadius: '1rem', backgroundColor: `${viewingClient.bg}15`, color: viewingClient.bg }}>
+                                        {viewingClient.status}
+                                    </span>
+                                </div>
+                            </div>
+                            <button onClick={() => setViewingClient(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-light)', padding: '0.2rem' }}>
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ padding: '1.25rem', backgroundColor: 'var(--color-background)', borderRadius: '0.75rem', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-text-light)', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem' }}>Người đại diện</h4>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <User size={18} color="var(--color-primary)" />
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{viewingClient.contact}</div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-light)' }}>{viewingClient.role || 'Không có chức vụ'}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div style={{ padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '0.75rem', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Phone size={14} /> Điện thoại</span>
+                                <span style={{ fontWeight: 600 }}>{viewingClient.phone || 'Chưa cung cấp'}</span>
+                            </div>
+                            <div style={{ padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '0.75rem', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Mail size={14} /> Email</span>
+                                <span style={{ fontWeight: 600, wordBreak: 'break-all' }}>{viewingClient.email || 'Chưa cung cấp'}</span>
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '0.75rem', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><MapPin size={14} /> Địa chỉ</span>
+                            <span style={{ fontWeight: 600 }}>{viewingClient.address || 'Chưa cung cấp'}</span>
+                        </div>
+
+                        {(viewingClient.startDate || viewingClient.endDate) && (
+                            <div style={{ padding: '1rem', backgroundColor: '#fff7ed', borderRadius: '0.75rem', border: '1px solid #fed7aa', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <span style={{ fontSize: '0.75rem', color: '#f97316', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}><Calendar size={14} /> Thời hạn hợp đồng</span>
+                                <span style={{ fontWeight: 700, color: '#ea580c' }}>
+                                    {viewingClient.startDate ? new Date(viewingClient.startDate).toLocaleDateString('vi-VN') : 'Không xác định'} 
+                                    {' -> '} 
+                                    {viewingClient.endDate ? new Date(viewingClient.endDate).toLocaleDateString('vi-VN') : 'Không xác định'}
+                                </span>
+                            </div>
+                        )}
+
+                        {viewingClient.contractFileUrl && (
+                            <a href={viewingClient.contractFileUrl} target="_blank" rel="noreferrer" style={{ 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', 
+                                padding: '1rem', backgroundColor: '#e0e7ff', color: '#4f46e5', 
+                                borderRadius: '0.75rem', border: '1px solid #c7d2fe', fontWeight: 600, textDecoration: 'none' 
+                            }}>
+                                <Download size={18} />
+                                Mở / Tải Về Hợp Đồng Đính Kèm
+                            </a>
+                        )}
+
+                        <button className="btn btn-secondary" style={{ width: '100%', padding: '0.75rem', marginTop: '0.5rem' }} onClick={() => setViewingClient(null)}>Đóng chi tiết</button>
                     </div>
                 </div>
             )}
