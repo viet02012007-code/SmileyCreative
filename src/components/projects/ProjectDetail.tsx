@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Search, Plus, Filter, LayoutGrid, CheckSquare, Calendar, Folder, X, Edit, Trash2, ArrowLeft, File, Download } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Search, Plus, Filter, LayoutGrid, CheckSquare, Calendar, Folder, X, Edit, Trash2, ArrowLeft, File, Download, Link as LinkIcon, FolderPlus, ChevronRight, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db, storage } from '../../config/firebase';
 import { collection, query, getDocs, addDoc, updateDoc, doc, deleteDoc, where } from 'firebase/firestore';
@@ -12,9 +12,27 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
     const [tasks, setTasks] = useState<any[]>([]);
     const [team, setTeam] = useState<any[]>([]);
     const [files, setFiles] = useState<any[]>([]);
+    const [folders, setFolders] = useState<any[]>([]);
+    const [currentFolder, setCurrentFolder] = useState<any>(null);
+    const [driveLink, setDriveLink] = useState(project?.driveLink || '');
+    const [isEditingDrive, setIsEditingDrive] = useState(false);
+    const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
     const [isLoadingData, setIsLoadingData] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [previewFile, setPreviewFile] = useState<any>(null);
+
+    const driveEmbedUrl = useMemo(() => {
+        if (!driveLink) return null;
+        try {
+            let match = driveLink.match(/folders\/([a-zA-Z0-9-_]+)/);
+            if (!match) match = driveLink.match(/id=([a-zA-Z0-9-_]+)/);
+            if (match && match[1]) return `https://drive.google.com/embeddedfolderview?id=${match[1]}#list`;
+        } catch (e) {
+            console.error('URL parse error:', e);
+        }
+        return null;
+    }, [driveLink]);
 
     useEffect(() => {
         const loadAllData = async () => {
@@ -31,10 +49,14 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                 const fetchedTeam = teamSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setTeam(fetchedTeam);
 
-                // Load Files
+                // Load Files & Folders
                 const filesQ = query(collection(db, 'project_files'), where('projectId', '==', String(project.id)));
                 const filesSnap = await getDocs(filesQ);
                 setFiles(filesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                
+                const foldersQ = query(collection(db, 'project_folders'), where('projectId', '==', String(project.id)));
+                const foldersSnap = await getDocs(foldersQ);
+                setFolders(foldersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 
             } catch (error) {
                 console.error("Lỗi khi tải dữ liệu dự án:", error);
@@ -65,7 +87,8 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                         type: f.type || 'Không xác định',
                         date: new Date().toLocaleDateString('vi-VN'),
                         data: downloadURL,
-                        storagePath: uploadTask.ref.fullPath
+                        storagePath: uploadTask.ref.fullPath,
+                        folderId: currentFolder ? String(currentFolder.id) : null
                     };
                     const docRef = await addDoc(collection(db, 'project_files'), fileData);
                     successfulFiles.push({ id: docRef.id, ...fileData });
@@ -97,6 +120,58 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
             }
         }
     };
+
+    const handleSaveDriveLink = async () => {
+        try {
+            await updateDoc(doc(db, 'projects', String(project.id)), { driveLink });
+            toast.success('Đã lưu liên kết Google Drive');
+            setIsEditingDrive(false);
+        } catch (err: any) {
+            toast.error('Lỗi lưu liên kết: ' + err.message);
+        }
+    };
+
+    const handleCreateFolder = async () => {
+        if (!newFolderName.trim()) return;
+        toast.loading('Đang tạo thư mục...', { id: 'create-folder' });
+        try {
+            const folderData = {
+                projectId: String(project.id),
+                name: newFolderName,
+                parentId: currentFolder ? String(currentFolder.id) : null,
+                createdAt: new Date().toISOString()
+            };
+            const docRef = await addDoc(collection(db, 'project_folders'), folderData);
+            setFolders([{ id: docRef.id, ...folderData }, ...folders]);
+            setNewFolderName('');
+            setShowNewFolderModal(false);
+            toast.success('Đã tạo thư mục', { id: 'create-folder' });
+        } catch (err: any) {
+            toast.error('Lỗi: ' + err.message, { id: 'create-folder' });
+        }
+    };
+
+    const handleDeleteFolder = async (id: string) => {
+        if (confirm('Xóa thư mục sẽ không xóa các tệp bên trong nhưng chúng sẽ bị mất cấu trúc thư mục. Bạn có chắc chắn?')) {
+            try {
+                await deleteDoc(doc(db, 'project_folders', id));
+                setFolders(folders.filter(f => f.id !== id));
+                toast.success('Đã xóa thư mục');
+            } catch (err: any) {
+                toast.error('Lỗi: ' + err.message);
+            }
+        }
+    };
+
+    const currentFiles = files.filter(f => {
+        if (currentFolder) return f.folderId === currentFolder.id;
+        return !f.folderId;
+    });
+
+    const currentFolders = folders.filter(f => {
+        if (currentFolder) return f.parentId === currentFolder.id;
+        return !f.parentId;
+    });
     
     const [taskSearch, setTaskSearch] = useState('');
     const [teamSearch, setTeamSearch] = useState('');
@@ -560,18 +635,80 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                         </div>
                     </>
                 ) : (
-                    <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+                    <div style={{ flex: 1, padding: '2rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        {/* Google Drive Section */}
+                        <div style={{ backgroundColor: 'white', borderRadius: '1rem', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
+                            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#E8F0FE', color: '#1A73E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#FFC107" d="M17 14.5L11 24H3L9 14.5h8z" /><path fill="#1976D2" d="M17 14.5H1l6-10h16l-6 10z" /><path fill="#4CAF50" d="M23 4.5l-6 10H1l6-10h16z" /></svg>
+                                    </div>
+                                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--color-text)' }}>Không gian Google Drive</h3>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    {driveLink && !isEditingDrive && <a href={driveLink} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: '#1A73E8', textDecoration: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', backgroundColor: '#E8F0FE' }}><ExternalLink size={14}/> Mở Drive</a>}
+                                    <button onClick={() => setIsEditingDrive(!isEditingDrive)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)', border: '1px solid var(--color-border)', backgroundColor: 'transparent', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer' }}><LinkIcon size={14}/> {driveLink ? 'Sửa Liên Kết' : 'Thêm Liên Kết'}</button>
+                                </div>
+                            </div>
+                            
+                            {isEditingDrive && (
+                                <div style={{ padding: '1.5rem', backgroundColor: '#F9FAFB', borderBottom: '1px solid var(--color-border)' }}>
+                                    <div style={{ display: 'flex', gap: '1rem' }}>
+                                        <input type="text" value={driveLink} onChange={(e) => setDriveLink(e.target.value)} placeholder="Nhập đường link thư mục Google Drive của không gian dự án..." style={{ flex: 1, padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', fontSize: '0.9rem', outline: 'none' }} />
+                                        <button onClick={handleSaveDriveLink} style={{ padding: '0 1.5rem', backgroundColor: '#1A73E8', color: 'white', borderRadius: '0.5rem', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Lưu cấu hình</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {driveEmbedUrl && !isEditingDrive && (
+                                <div style={{ width: '100%', height: '400px', backgroundColor: '#f1f3f4' }}>
+                                    <iframe src={driveEmbedUrl} width="100%" height="100%" style={{ border: 'none' }} allow="autoplay"></iframe>
+                                </div>
+                            )}
+                            {!driveEmbedUrl && driveLink && !isEditingDrive && (
+                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.95rem' }}>Link Drive hiện tại không thể nhúng (Do định dạng hoặc quyền riêng tư). Vui lòng nhấn "Mở Drive" để xem trên trình duyệt mới.</div>
+                            )}
+                            {!driveLink && !isEditingDrive && (
+                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.95rem' }}>Chưa có liên kết Drive. Hãy cấu hình để nhúng trực tiếp khu vực làm việc Google.</div>
+                            )}
+                        </div>
+
+                        {/* App Virtual Drive */}
                         <div>
-                            <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-light)', letterSpacing: '1px', marginBottom: '1.25rem', textTransform: 'uppercase' }}>Tệp cá nhân / Tải lên gần đây</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', fontWeight: 700, color: 'var(--color-text)' }}>
+                                    <button onClick={() => setCurrentFolder(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: currentFolder ? 'var(--color-text-light)' : 'var(--color-primary)', fontWeight: currentFolder ? 600 : 800 }}>Tài liệu hệ thống</button>
+                                    {currentFolder && (
+                                        <>
+                                            <ChevronRight size={16} color="var(--color-text-light)" />
+                                            <span style={{ color: 'var(--color-primary)', fontWeight: 800 }}>{currentFolder.name}</span>
+                                        </>
+                                    )}
+                                </div>
+                                <button onClick={() => setShowNewFolderModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', backgroundColor: 'white', color: 'var(--color-text)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
+                                    <FolderPlus size={16} /> Tạo thư mục
+                                </button>
+                            </div>
+
                             {isLoadingData ? (
                                 <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)' }}>Đang tải dữ liệu tệp tin...</div>
-                            ) : files.length > 0 ? (
+                            ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
-                                    {files.map((file: any) => (
+                                    {currentFolders.map(folder => (
+                                        <div key={folder.id} onClick={() => setCurrentFolder(folder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', borderRadius: '0.75rem', padding: '1rem', border: '1px solid var(--color-border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <div style={{ padding: '0.6rem', backgroundColor: '#FFF7ED', borderRadius: '0.5rem', color: '#ff7d0d', display: 'flex' }}><Folder size={20} fill="#ff7d0d" strokeWidth={1}/></div>
+                                                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text)' }}>{folder.name}</div>
+                                            </div>
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '0.5rem', opacity: 0.5 }} title="Xóa thư mục"><Trash2 size={16}/></button>
+                                        </div>
+                                    ))}
+
+                                    {currentFiles.map((file: any) => (
                                         <div key={file.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', borderRadius: '0.75rem', padding: '1rem', border: '1px solid var(--color-border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: file.data ? 'pointer' : 'default' }} onClick={() => { if(file.data && file.type?.startsWith('image/')) setPreviewFile(file); }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
                                                 {file.data && file.type?.startsWith('image/') ? <img src={file.data} alt="Preview" style={{ width: '48px', height: '48px', borderRadius: '0.5rem', objectFit: 'cover' }} /> : <div style={{ backgroundColor: '#F3F4F6', padding: '0.75rem', borderRadius: '0.5rem', color: '#ff7d0d', display: 'flex' }}><File size={24}/></div>}
-                                                <div style={{ overflow: 'hidden' }}><div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)' }}>{file.name}</div><div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', marginTop: '0.2rem' }}>{file.size}</div></div>
+                                                <div style={{ overflow: 'hidden' }}><div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.name}</div><div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', marginTop: '0.2rem' }}>{file.size}</div></div>
                                             </div>
                                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                 {file.data && (
@@ -583,9 +720,11 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                                             </div>
                                         </div>
                                     ))}
+
+                                    {currentFolders.length === 0 && currentFiles.length === 0 && (
+                                        <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)', backgroundColor: 'white', borderRadius: '0.75rem', border: '1px dashed var(--color-border)' }}>Thư mục trống. Bạn có thể tải lên hoặc tạo thư mục mới.</div>
+                                    )}
                                 </div>
-                            ) : (
-                                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-light)' }}>Chưa có tệp nào được tải lên.</div>
                             )}
                         </div>
                     </div>
@@ -618,6 +757,23 @@ export default function ProjectDetail({ project, onBack }: { project: any, onBac
                         <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
                             <button onClick={handleSaveTask} style={{ flex: 1, padding: '0.75rem', backgroundColor: '#ff7d0d', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>Lưu công việc</button>
                             {editingTask && <button onClick={() => handleDeleteTask(editingTask.id)} style={{ padding: '0.75rem 1rem', backgroundColor: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={18} /></button>}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal - New Folder */}
+            {showNewFolderModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowNewFolderModal(false)}>
+                    <div style={{ width: '100%', maxWidth: '400px', backgroundColor: 'white', borderRadius: '1rem', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Thư mục mới</h3>
+                            <button onClick={() => setShowNewFolderModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-light)' }}><X size={20} /></button>
+                        </div>
+                        <input type="text" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} autoFocus style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--color-border)', outline: 'none' }} placeholder="Tên thư mục..." />
+                        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                            <button onClick={() => setShowNewFolderModal(false)} style={{ flex: 1, padding: '0.75rem', backgroundColor: '#F3F4F6', color: 'var(--color-text)', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>Hủy</button>
+                            <button onClick={handleCreateFolder} style={{ flex: 1, padding: '0.75rem', backgroundColor: '#ff7d0d', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>Tạo mới</button>
                         </div>
                     </div>
                 </div>
